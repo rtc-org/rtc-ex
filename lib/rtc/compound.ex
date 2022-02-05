@@ -1,14 +1,14 @@
 defmodule RTC.Compound do
-  import RDF.Guards
-
   defstruct [
     # we have no explicit id field, since we're using the subject of the description for this
     :elements,
+    :sub_compounds,
     :annotations
   ]
 
   @type t :: %__MODULE__{
           elements: any,
+          sub_compounds: [t],
           annotations: RDF.Description.t()
         }
 
@@ -16,29 +16,16 @@ defmodule RTC.Compound do
 
   def id(%__MODULE__{} = compound), do: compound.annotations.subject
 
-  def new(triples, compound_id, opts \\ [])
+  def new(elements, compound_id, opts \\ []) do
+    elements = for element <- elements, into: MapSet.new(), do: RDF.triple(element)
+    sub_compounds = opts |> Keyword.get(:sub_compound) |> List.wrap() |> MapSet.new()
 
-  def new(triples, compound_id, opts) do
     %__MODULE__{
-      elements: new_elements(triples),
+      elements: elements,
+      sub_compounds: sub_compounds,
       annotations: new_annotation(compound_id, Keyword.get(opts, :annotations))
     }
   end
-
-  def new_elements(elements) do
-    elements
-    |> normalize_elements()
-    |> Map.new()
-  end
-
-  defp normalize_elements(elements) do
-    Enum.map(elements, &normalize_element/1)
-  end
-
-  defp normalize_element(%__MODULE__{} = nested_compound),
-    do: {id(nested_compound), nested_compound}
-
-  defp normalize_element(triple) when is_triple(triple), do: {RDF.triple(triple), nil}
 
   defp new_annotation(compound_id, nil), do: RDF.description(compound_id)
 
@@ -51,13 +38,13 @@ defmodule RTC.Compound do
     {elements, annotations} =
       if description = graph[compound_id] do
         if parent_compound_id do
-          RDF.Description.delete(description, {RTC.elementOf(), parent_compound_id})
+          RDF.Description.delete(description, {RTC.subCompoundOf(), parent_compound_id})
         else
           description
         end
         |> RDF.Description.pop(RTC.elements())
       else
-        {[], nil}
+        {[], []}
       end
 
     element_ofs =
@@ -65,37 +52,33 @@ defmodule RTC.Compound do
       |> RDF.Graph.query({:element?, RTC.elementOf(), compound_id})
       |> Enum.map(&Map.get(&1, :element))
 
-    unless is_nil(annotations) and Enum.empty?(element_ofs) do
-      (List.wrap(elements) ++ element_ofs)
-      |> MapSet.new()
-      |> Enum.map(fn
-        triple when is_triple(triple) ->
-          triple
+    sub_compounds =
+      graph
+      |> RDF.Graph.query({:sub_compound?, RTC.subCompoundOf(), compound_id})
+      |> Enum.map(&do_from_rdf(graph, Map.get(&1, :sub_compound), compound_id))
 
-        nested_compound ->
-          do_from_rdf(graph, nested_compound, compound_id)
-      end)
-      |> new(compound_id, annotations: annotations)
-    else
-      new([], compound_id)
-    end
+    new(
+      List.wrap(elements) ++ element_ofs,
+      compound_id,
+      sub_compound: sub_compounds,
+      annotations: annotations
+    )
   end
 
   def to_rdf(%__MODULE__{} = compound) do
     compound_id = id(compound)
 
-    base_graph =
-      RDF.graph(name: compound_id)
-      |> RDF.Graph.add(compound.annotations)
+    graph =
+      Enum.reduce(
+        compound.elements,
+        RDF.graph(name: compound_id, init: compound.annotations),
+        &RDF.Graph.add(&2, &1, add_annotations: {RTC.elementOf(), compound_id})
+      )
 
-    Enum.reduce(compound.elements, base_graph, fn
-      {triple, nil}, graph when is_triple(triple) ->
-        RDF.Graph.add(graph, triple, add_annotations: {RTC.elementOf(), compound_id})
-
-      {sub_compound_id, sub_compound}, graph ->
-        graph
-        |> RDF.Graph.add({sub_compound_id, RTC.elementOf(), compound_id})
-        |> RDF.Graph.add(to_rdf(sub_compound))
+    Enum.reduce(compound.sub_compounds, graph, fn sub_compound, graph ->
+      graph
+      |> RDF.Graph.add({id(sub_compound), RTC.subCompoundOf(), compound_id})
+      |> RDF.Graph.add(to_rdf(sub_compound))
     end)
   end
 

@@ -17,3 +17,9 @@ rtc:elements a rdf:Property
         ; rdfs:domain rtc:Compound
         ; owl:inverseOf rtc:elementOf
 .
+
+rtc:subCompoundOf a rdf:Property
+        ; rdfs:domain rtc:Compound
+        ; rdfs:range  rtc:Compound
+.
+

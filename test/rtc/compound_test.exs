@@ -7,22 +7,25 @@ defmodule RTC.CompoundTest do
 
   @triples [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]
   @flat_compound %Compound{
-    elements: %{
-      RDF.triple({EX.S1, EX.P1, EX.O1}) => nil,
-      RDF.triple({EX.S2, EX.P2, EX.O2}) => nil
-    },
+    elements:
+      MapSet.new([
+        RDF.triple({EX.S1, EX.P1, EX.O1}),
+        RDF.triple({EX.S2, EX.P2, EX.O2})
+      ]),
+    sub_compounds: MapSet.new(),
     annotations: RDF.description(EX.Compound)
   }
 
   @other_triples [{EX.S3, EX.P3, EX.O3}, {EX.S4, EX.P4, EX.O4}]
-  @other_compound Compound.new(@other_triples, EX.NestedCompound)
+  @sub_compound Compound.new(@other_triples, EX.SubCompound)
 
   @nested_compound %Compound{
-    elements: %{
-      RDF.triple({EX.S1, EX.P1, EX.O1}) => nil,
-      RDF.triple({EX.S2, EX.P2, EX.O2}) => nil,
-      Compound.id(@other_compound) => @other_compound
-    },
+    elements:
+      MapSet.new([
+        RDF.triple({EX.S1, EX.P1, EX.O1}),
+        RDF.triple({EX.S2, EX.P2, EX.O2})
+      ]),
+    sub_compounds: MapSet.new([@sub_compound]),
     annotations: RDF.description(EX.Compound)
   }
 
@@ -36,10 +39,12 @@ defmodule RTC.CompoundTest do
 
       assert Compound.new(description, EX.Compound) ==
                %Compound{
-                 elements: %{
-                   RDF.triple({EX.S, EX.P1, EX.O1}) => nil,
-                   RDF.triple({EX.S, EX.P2, EX.O2}) => nil
-                 },
+                 elements:
+                   MapSet.new([
+                     RDF.triple({EX.S, EX.P1, EX.O1}),
+                     RDF.triple({EX.S, EX.P2, EX.O2})
+                   ]),
+                 sub_compounds: MapSet.new(),
                  annotations: RDF.description(EX.Compound)
                }
     end
@@ -48,8 +53,12 @@ defmodule RTC.CompoundTest do
       assert @triples |> RDF.graph() |> Compound.new(EX.Compound) == @flat_compound
     end
 
+    test "duplicate triples" do
+      assert Compound.new(@triples ++ @triples, EX.Compound) == @flat_compound
+    end
+
     test "constructs a nested compound" do
-      assert Compound.new([@other_compound | @triples], EX.Compound) ==
+      assert Compound.new(@triples, EX.Compound, sub_compound: @sub_compound) ==
                @nested_compound
     end
   end
@@ -65,20 +74,23 @@ defmodule RTC.CompoundTest do
                }
     end
 
-    test "annotations are not added to nested compounds" do
+    test "annotations are not added to sub-compounds" do
       nested_compound =
-        Compound.new([{EX.S3, EX.P3, EX.O3}, {EX.S4, EX.P4, EX.O4}], EX.NestedCompound)
+        Compound.new([{EX.S3, EX.P3, EX.O3}, {EX.S4, EX.P4, EX.O4}], EX.SubCompound)
 
-      triples = [{EX.S1, EX.P1, EX.O1}, nested_compound, {EX.S2, EX.P2, EX.O2}]
       annotations = %{EX.ap1() => EX.AO1, EX.ap2() => EX.AO2}
 
-      assert Compound.new(triples, EX.Compound, annotations: annotations) ==
+      assert Compound.new(@triples, EX.Compound,
+               sub_compound: nested_compound,
+               annotations: annotations
+             ) ==
                %Compound{
-                 elements: %{
-                   RDF.triple({EX.S1, EX.P1, EX.O1}) => nil,
-                   RDF.triple({EX.S2, EX.P2, EX.O2}) => nil,
-                   RDF.iri(EX.NestedCompound) => nested_compound
-                 },
+                 elements:
+                   MapSet.new([
+                     RDF.triple({EX.S1, EX.P1, EX.O1}),
+                     RDF.triple({EX.S2, EX.P2, EX.O2})
+                   ]),
+                 sub_compounds: MapSet.new([nested_compound]),
                  annotations: RDF.description(EX.Compound, init: annotations)
                }
     end
@@ -129,40 +141,22 @@ defmodule RTC.CompoundTest do
         |> Graph.add(@triples)
         |> Graph.add(EX.Compound |> RTC.elements(@triples))
         |> Graph.add(@other_triples)
-        |> Graph.add(EX.NestedCompound |> RTC.elements(@other_triples))
-        |> Graph.add({EX.NestedCompound, RTC.elementOf(), EX.Compound})
+        |> Graph.add(EX.SubCompound |> RTC.elements(@other_triples))
+        |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
 
       assert Compound.from_rdf(graph, EX.Compound) ==
-               Compound.new([@other_compound | @triples], EX.Compound)
+               Compound.new(@triples, EX.Compound, sub_compound: @sub_compound)
     end
 
     test "gets a nested compound back (via rtc:elementOf)" do
       graph =
         RDF.graph(name: RDF.iri(EX.Compound))
         |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
-        |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.NestedCompound})
-        |> Graph.add({EX.NestedCompound, RTC.elementOf(), EX.Compound})
+        |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
+        |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
 
       assert Compound.from_rdf(graph, EX.Compound) ==
-               Compound.new([@other_compound | @triples], EX.Compound)
-    end
-
-    test "when a non-existing resource is used as a nested compound" do
-      graph =
-        RDF.graph(name: RDF.iri(EX.Compound))
-        |> Graph.add(@triples)
-        |> Graph.add(EX.Compound |> RTC.elements([EX.UndefinedResource | @triples]))
-
-      assert Compound.from_rdf(graph, EX.Compound) ==
-               Compound.new([Compound.new([], EX.UndefinedResource) | @triples], EX.Compound)
-
-      graph =
-        RDF.graph(name: RDF.iri(EX.Compound))
-        |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
-        |> Graph.add({EX.UndefinedResource, RTC.elementOf(), EX.Compound})
-
-      assert Compound.from_rdf(graph, EX.Compound) ==
-               Compound.new([Compound.new([], EX.UndefinedResource) | @triples], EX.Compound)
+               Compound.new(@triples, EX.Compound, sub_compound: @sub_compound)
     end
   end
 
@@ -173,12 +167,12 @@ defmodule RTC.CompoundTest do
                |> Graph.add(@triples, add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
     end
 
-    test "with nested compound (with rtc:elementOf)" do
+    test "with sub-compound" do
       assert Compound.to_rdf(@nested_compound) ==
                RDF.graph(name: RDF.iri(EX.Compound))
                |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
-               |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.NestedCompound})
-               |> Graph.add({EX.NestedCompound, RTC.elementOf(), EX.Compound})
+               |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
+               |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
     end
   end
 end
