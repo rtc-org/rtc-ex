@@ -32,16 +32,19 @@ defmodule RTC.Compound do
   defp new_annotation(compound_id, description),
     do: RDF.description(compound_id, init: description)
 
-  def from_rdf(%RDF.Graph{} = graph, compound_id), do: do_from_rdf(graph, compound_id, nil)
+  def from_rdf(%RDF.Graph{} = graph, compound_id), do: do_from_rdf(graph, compound_id, [])
 
-  defp do_from_rdf(graph, compound_id, parent_compound_id) do
+  defp do_from_rdf(graph, compound_id, parent_compound_ids) do
+    if compound_id in parent_compound_ids do
+      raise("circle in sub-compound #{compound_id}")
+    end
+
     {elements, annotations} =
       if description = graph[compound_id] do
-        if parent_compound_id do
+        parent_compound_ids
+        |> Enum.reduce(description, fn parent_compound_id, description ->
           RDF.Description.delete(description, {RTC.subCompoundOf(), parent_compound_id})
-        else
-          description
-        end
+        end)
         |> RDF.Description.pop(RTC.elements())
       else
         {[], []}
@@ -55,7 +58,9 @@ defmodule RTC.Compound do
     sub_compounds =
       graph
       |> RDF.Graph.query({:sub_compound?, RTC.subCompoundOf(), compound_id})
-      |> Enum.map(&do_from_rdf(graph, Map.get(&1, :sub_compound), compound_id))
+      |> Enum.map(
+        &do_from_rdf(graph, Map.get(&1, :sub_compound), [compound_id | parent_compound_ids])
+      )
 
     new(
       List.wrap(elements) ++ element_ofs,

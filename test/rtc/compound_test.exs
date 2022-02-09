@@ -158,6 +158,24 @@ defmodule RTC.CompoundTest do
       assert Compound.from_rdf(graph, EX.Compound) ==
                Compound.new(@triples, EX.Compound, sub_compound: @sub_compound)
     end
+
+    test "cyclic sub-compounds raise an error" do
+      assert_raise RuntimeError, "circle in sub-compound #{RDF.iri(EX.Compound)}", fn ->
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
+        |> Graph.add({EX.Compound, RTC.subCompoundOf(), EX.Compound})
+        |> Compound.from_rdf(EX.Compound)
+      end
+
+      assert_raise RuntimeError, "circle in sub-compound #{RDF.iri(EX.SubCompound)}", fn ->
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
+        |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
+        |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
+        |> Graph.add({EX.Compound, RTC.subCompoundOf(), EX.SubCompound})
+        |> Compound.from_rdf(EX.Compound)
+      end
+    end
   end
 
   describe "to_rdf/1" do
