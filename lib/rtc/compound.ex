@@ -88,4 +88,46 @@ defmodule RTC.Compound do
   end
 
   defdelegate graph(compound), to: __MODULE__, as: :to_rdf
+
+  @spec elements(t) :: [element]
+  def elements(%__MODULE__{} = compound) do
+    compound
+    |> element_set()
+    |> MapSet.to_list()
+  end
+
+  @spec element_set(t) :: MapSet.t()
+  def element_set(%__MODULE__{} = compound) do
+    Enum.reduce(compound.sub_compounds, compound.elements, fn sub_compound, element_set ->
+      MapSet.union(element_set, element_set(sub_compound))
+    end)
+  end
+
+  @spec element?(t, element) :: boolean
+  def element?(%__MODULE__{} = compound, element) do
+    element = RDF.triple(element)
+
+    element in compound.elements or Enum.any?(compound.sub_compounds, &element?(&1, element))
+  end
+
+  @spec size(t) :: non_neg_integer
+  def size(%__MODULE__{} = compound) do
+    compound
+    |> element_set()
+    |> MapSet.size()
+  end
+
+  defimpl Enumerable do
+    alias RTC.Compound
+
+    def count(%Compound{} = compound), do: {:ok, Compound.size(compound)}
+
+    def member?(%Compound{} = compound, element), do: {:ok, Compound.element?(compound, element)}
+
+    def slice(%Compound{} = compound),
+      do: compound |> Compound.element_set() |> Enumerable.slice()
+
+    def reduce(%Compound{} = compound, acc, fun),
+      do: compound |> Compound.element_set() |> Enumerable.reduce(acc, fun)
+  end
 end
