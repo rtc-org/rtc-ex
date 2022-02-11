@@ -1,4 +1,5 @@
 defmodule RTC.Compound do
+  @enforce_keys [:elements, :sub_compounds, :annotations]
   defstruct [
     # we have no explicit id field, since we're using the subject of the description for this
     :elements,
@@ -7,15 +8,19 @@ defmodule RTC.Compound do
   ]
 
   @type t :: %__MODULE__{
-          elements: any,
-          sub_compounds: [t],
+          elements: MapSet.t(),
+          sub_compounds: MapSet.t(),
           annotations: RDF.Description.t()
         }
 
+  @type id :: RDF.Statement.subject()
+  @type coercible_id :: RDF.Statement.coercible_subject()
   @type element :: RDF.Triple.t()
 
+  @spec id(t) :: id()
   def id(%__MODULE__{} = compound), do: compound.annotations.subject
 
+  @spec new([element()], coercible_id(), keyword) :: t
   def new(elements, compound_id, opts \\ []) do
     elements = for element <- elements, into: MapSet.new(), do: RDF.triple(element)
     sub_compounds = opts |> Keyword.get(:sub_compound) |> List.wrap() |> MapSet.new()
@@ -32,6 +37,7 @@ defmodule RTC.Compound do
   defp new_annotation(compound_id, description),
     do: RDF.description(compound_id, init: description)
 
+  @spec from_rdf(RDF.Graph.t(), coercible_id()) :: t
   def from_rdf(%RDF.Graph{} = graph, compound_id), do: do_from_rdf(graph, compound_id, [])
 
   defp do_from_rdf(graph, compound_id, parent_compound_ids) do
@@ -70,6 +76,7 @@ defmodule RTC.Compound do
     )
   end
 
+  @spec to_rdf(t) :: RDF.Graph.t()
   def to_rdf(%__MODULE__{} = compound) do
     compound_id = id(compound)
 
