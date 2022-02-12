@@ -7,7 +7,7 @@ defmodule RTC.CompoundTest do
 
   @triples [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]
   @flat_compound %Compound{
-    elements:
+    triples:
       MapSet.new([
         RDF.triple({EX.S1, EX.P1, EX.O1}),
         RDF.triple({EX.S2, EX.P2, EX.O2})
@@ -16,7 +16,7 @@ defmodule RTC.CompoundTest do
   }
 
   @empty_compound %Compound{
-    elements: MapSet.new(),
+    triples: MapSet.new(),
     annotations: RDF.description(EX.Compound)
   }
 
@@ -24,7 +24,7 @@ defmodule RTC.CompoundTest do
   @sub_compound Compound.new(@other_triples, EX.SubCompound)
 
   @nested_compound %Compound{
-    elements:
+    triples:
       MapSet.new([
         RDF.triple({EX.S1, EX.P1, EX.O1}),
         RDF.triple({EX.S2, EX.P2, EX.O2})
@@ -33,8 +33,8 @@ defmodule RTC.CompoundTest do
     annotations: RDF.description(EX.Compound)
   }
 
-  @compound_with_duplicate_element_in_sub_compound %Compound{
-    elements:
+  @compound_with_duplicate_triple_in_sub_compound %Compound{
+    triples:
       MapSet.new([
         RDF.triple({EX.S1, EX.P1, EX.O1}),
         RDF.triple({EX.S2, EX.P2, EX.O2}),
@@ -54,7 +54,7 @@ defmodule RTC.CompoundTest do
 
       assert Compound.new(description, EX.Compound) ==
                %Compound{
-                 elements:
+                 triples:
                    MapSet.new([
                      RDF.triple({EX.S, EX.P1, EX.O1}),
                      RDF.triple({EX.S, EX.P2, EX.O2})
@@ -99,7 +99,7 @@ defmodule RTC.CompoundTest do
                annotations: annotations
              ) ==
                %Compound{
-                 elements:
+                 triples:
                    MapSet.new([
                      RDF.triple({EX.S1, EX.P1, EX.O1}),
                      RDF.triple({EX.S2, EX.P2, EX.O2})
@@ -241,8 +241,8 @@ defmodule RTC.CompoundTest do
       assert Compound.to_rdf(@empty_compound) == RDF.graph(name: RDF.iri(EX.Compound))
     end
 
-    test "a compound with a duplicate elements in a sub-compound" do
-      assert Compound.to_rdf(@compound_with_duplicate_element_in_sub_compound) ==
+    test "a compound with a duplicate triples in a sub-compound" do
+      assert Compound.to_rdf(@compound_with_duplicate_triple_in_sub_compound) ==
                RDF.graph(name: RDF.iri(EX.Compound))
                |> Graph.add([{EX.S3, EX.P3, EX.O3} | @triples],
                  add_annotations: {RTC.elementOf(), EX.Compound}
@@ -285,49 +285,49 @@ defmodule RTC.CompoundTest do
     end
   end
 
-  describe "element_set/1" do
-    test "returns the element triples as a list" do
-      assert Compound.element_set(@flat_compound) ==
+  describe "triple_set/1" do
+    test "returns the triple elements as a list" do
+      assert Compound.triple_set(@flat_compound) ==
                Enum.map(@triples, &RDF.triple/1) |> MapSet.new()
     end
 
-    test "includes the elements of nested compounds" do
-      assert Compound.element_set(@nested_compound) ==
+    test "includes the triples of nested compounds" do
+      assert Compound.triple_set(@nested_compound) ==
                Enum.map(@triples ++ @other_triples, &RDF.triple/1) |> MapSet.new()
     end
 
     test "the empty compound" do
-      assert Compound.element_set(@empty_compound) == MapSet.new()
+      assert Compound.triple_set(@empty_compound) == MapSet.new()
     end
 
-    test "a compound with a duplicate elements in a sub-compound" do
-      assert Compound.element_set(@compound_with_duplicate_element_in_sub_compound) ==
+    test "a compound with duplicate triples in a sub-compound" do
+      assert Compound.triple_set(@compound_with_duplicate_triple_in_sub_compound) ==
                Enum.map(@triples ++ @other_triples, &RDF.triple/1) |> MapSet.new()
     end
   end
 
-  describe "elements/1" do
-    test "returns the element triples as a list" do
-      assert Compound.elements(@flat_compound) == Enum.map(@triples, &RDF.triple/1)
+  describe "triples/1" do
+    test "returns the triple elements as a list" do
+      assert Compound.triples(@flat_compound) == Enum.map(@triples, &RDF.triple/1)
     end
 
-    test "includes the elements of nested compounds" do
-      assert Compound.elements(@nested_compound) ==
+    test "includes the triples of nested compounds" do
+      assert Compound.triples(@nested_compound) ==
                Enum.map(@triples ++ @other_triples, &RDF.triple/1)
     end
 
     test "the empty compound" do
-      assert Compound.elements(@empty_compound) == []
+      assert Compound.triples(@empty_compound) == []
     end
 
-    test "a compound with a duplicate elements in a sub-compound" do
-      assert Compound.elements(@compound_with_duplicate_element_in_sub_compound) ==
+    test "a compound with duplicate triple elements in a sub-compound" do
+      assert Compound.triples(@compound_with_duplicate_triple_in_sub_compound) ==
                Enum.map(@triples ++ @other_triples, &RDF.triple/1)
     end
   end
 
   describe "element?/2" do
-    test "returns whether the element is a member of the compound" do
+    test "returns whether the triple is an element of the compound" do
       Enum.each(@triples, fn triple ->
         assert Compound.element?(@flat_compound, triple) == true
       end)
@@ -357,8 +357,8 @@ defmodule RTC.CompoundTest do
       assert Compound.size(@nested_compound) == 4
     end
 
-    test "a compound with a duplicate elements in a sub-compound" do
-      assert Compound.size(@compound_with_duplicate_element_in_sub_compound) == 4
+    test "a compound with duplicate triple elements in a sub-compound" do
+      assert Compound.size(@compound_with_duplicate_triple_in_sub_compound) == 4
     end
   end
 
@@ -398,7 +398,7 @@ defmodule RTC.CompoundTest do
 
     test "a triple that is an element of a sub-compound" do
       assert Compound.add(@nested_compound, [{EX.S3, EX.P3, EX.O3}]) ==
-               @compound_with_duplicate_element_in_sub_compound
+               @compound_with_duplicate_triple_in_sub_compound
     end
   end
 
@@ -438,7 +438,7 @@ defmodule RTC.CompoundTest do
              ]) ==
                Compound.put_sub_compound(@flat_compound, Compound.new([], EX.SubCompound))
 
-      assert Compound.delete(@compound_with_duplicate_element_in_sub_compound, [
+      assert Compound.delete(@compound_with_duplicate_triple_in_sub_compound, [
                {EX.S3, EX.P3, EX.O3},
                {EX.S4, EX.P4, EX.O4}
              ]) ==
