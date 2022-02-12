@@ -12,13 +12,11 @@ defmodule RTC.CompoundTest do
         RDF.triple({EX.S1, EX.P1, EX.O1}),
         RDF.triple({EX.S2, EX.P2, EX.O2})
       ]),
-    sub_compounds: MapSet.new(),
     annotations: RDF.description(EX.Compound)
   }
 
   @empty_compound %Compound{
     elements: MapSet.new(),
-    sub_compounds: MapSet.new(),
     annotations: RDF.description(EX.Compound)
   }
 
@@ -31,7 +29,7 @@ defmodule RTC.CompoundTest do
         RDF.triple({EX.S1, EX.P1, EX.O1}),
         RDF.triple({EX.S2, EX.P2, EX.O2})
       ]),
-    sub_compounds: MapSet.new([@sub_compound]),
+    sub_compounds: %{Compound.id(@sub_compound) => @sub_compound},
     annotations: RDF.description(EX.Compound)
   }
 
@@ -42,7 +40,7 @@ defmodule RTC.CompoundTest do
         RDF.triple({EX.S2, EX.P2, EX.O2}),
         RDF.triple({EX.S3, EX.P3, EX.O3})
       ]),
-    sub_compounds: MapSet.new([@sub_compound]),
+    sub_compounds: %{Compound.id(@sub_compound) => @sub_compound},
     annotations: RDF.description(EX.Compound)
   }
 
@@ -61,7 +59,6 @@ defmodule RTC.CompoundTest do
                      RDF.triple({EX.S, EX.P1, EX.O1}),
                      RDF.triple({EX.S, EX.P2, EX.O2})
                    ]),
-                 sub_compounds: MapSet.new(),
                  annotations: RDF.description(EX.Compound)
                }
     end
@@ -107,7 +104,7 @@ defmodule RTC.CompoundTest do
                      RDF.triple({EX.S1, EX.P1, EX.O1}),
                      RDF.triple({EX.S2, EX.P2, EX.O2})
                    ]),
-                 sub_compounds: MapSet.new([nested_compound]),
+                 sub_compounds: %{Compound.id(nested_compound) => nested_compound},
                  annotations: RDF.description(EX.Compound, init: annotations)
                }
     end
@@ -118,7 +115,7 @@ defmodule RTC.CompoundTest do
       assert Compound.from_rdf(RDF.graph(), EX.Compound) == @empty_compound
     end
 
-    test "gets a compound back from a graph when it's annotated via rtc:elements" do
+    test "retrieves a compound from a graph when it's annotated via rtc:elements" do
       graph =
         RDF.graph()
         |> Graph.add(@triples)
@@ -128,7 +125,7 @@ defmodule RTC.CompoundTest do
                Compound.new(@triples, EX.Compound)
     end
 
-    test "gets a compound back from a graph when it's annotated via rtc:elementOf" do
+    test "retrieves a compound from a graph when it's annotated via rtc:elementOf" do
       graph =
         RDF.graph()
         |> Graph.add(@triples, add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
@@ -137,7 +134,7 @@ defmodule RTC.CompoundTest do
                Compound.new(@triples, EX.Compound)
     end
 
-    test "gets a compound back from a graph when it's annotated via rtc:elements and rtc:elementOf" do
+    test "retrieves a compound from a graph when it's annotated via rtc:elements and rtc:elementOf" do
       triples =
         [first | rest] = [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}, {EX.S3, EX.P3, EX.O3}]
 
@@ -151,7 +148,7 @@ defmodule RTC.CompoundTest do
                Compound.new(triples, EX.Compound)
     end
 
-    test "gets a nested compound back (via rtc:elements)" do
+    test "retrieves a nested compound (via rtc:elements)" do
       graph =
         RDF.graph(name: RDF.iri(EX.Compound))
         |> Graph.add(@triples)
@@ -164,7 +161,7 @@ defmodule RTC.CompoundTest do
                Compound.new(@triples, EX.Compound, sub_compound: @sub_compound)
     end
 
-    test "gets a nested compound back (via rtc:elementOf)" do
+    test "retrieves a nested compound (via rtc:elementOf)" do
       graph =
         RDF.graph(name: RDF.iri(EX.Compound))
         |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
@@ -173,6 +170,37 @@ defmodule RTC.CompoundTest do
 
       assert Compound.from_rdf(graph, EX.Compound) ==
                Compound.new(@triples, EX.Compound, sub_compound: @sub_compound)
+    end
+
+    test "retrieves annotations" do
+      graph =
+        RDF.graph()
+        |> Graph.add(@triples)
+        |> Graph.add(EX.Compound |> RTC.elements(@triples) |> EX.foo(EX.Bar))
+
+      assert Compound.from_rdf(graph, EX.Compound) ==
+               Compound.new(@triples, EX.Compound, annotations: {EX.foo(), EX.Bar})
+
+      graph =
+        RDF.graph()
+        |> Graph.add(@triples, add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
+        |> Graph.add(EX.Compound |> EX.foo(EX.Bar))
+
+      assert Compound.from_rdf(graph, EX.Compound) ==
+               Compound.new(@triples, EX.Compound, annotations: {EX.foo(), EX.Bar})
+
+      graph =
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
+        |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
+        |> Graph.add(EX.Compound |> EX.foo1(EX.Bar1))
+        |> Graph.add(EX.SubCompound |> RTC.subCompoundOf(EX.Compound) |> EX.foo2(EX.Bar2))
+
+      assert Compound.from_rdf(graph, EX.Compound) ==
+               Compound.new(@triples, EX.Compound,
+                 sub_compound: Compound.add_annotations(@sub_compound, {EX.foo2(), EX.Bar2}),
+                 annotations: {EX.foo1(), EX.Bar1}
+               )
     end
 
     test "cyclic sub-compounds raise an error" do
@@ -221,6 +249,19 @@ defmodule RTC.CompoundTest do
                )
                |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
                |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
+    end
+
+    test "annotations are included" do
+      assert Compound.new(@triples, EX.Compound,
+               sub_compound: Compound.add_annotations(@sub_compound, {EX.foo2(), EX.Bar2}),
+               annotations: {EX.foo1(), EX.Bar1}
+             )
+             |> Compound.to_rdf() ==
+               RDF.graph(name: RDF.iri(EX.Compound))
+               |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
+               |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
+               |> Graph.add(EX.Compound |> EX.foo1(EX.Bar1))
+               |> Graph.add(EX.SubCompound |> RTC.subCompoundOf(EX.Compound) |> EX.foo2(EX.Bar2))
     end
   end
 
@@ -299,6 +340,165 @@ defmodule RTC.CompoundTest do
     test "a compound with a duplicate elements in a sub-compound" do
       assert Compound.size(@compound_with_duplicate_element_in_sub_compound) == 4
     end
+  end
+
+  describe "add/2" do
+    test "a single triple" do
+      assert @empty_compound
+             |> Compound.add({EX.S1, EX.P1, EX.O1})
+             |> Compound.add({EX.S2, EX.P2, EX.O2}) == @flat_compound
+    end
+
+    test "with RDF.ex data structures" do
+      [
+        EX.Foo |> EX.bar(42) |> EX.baz(EX.O),
+        RDF.graph(EX.Foo |> EX.bar(42) |> EX.baz(EX.O))
+      ]
+      |> Enum.each(fn data ->
+        assert Compound.add(@flat_compound, data) ==
+                 Compound.add(@flat_compound, RDF.Data.statements(data))
+      end)
+    end
+
+    test "a list of triples" do
+      assert Compound.add(@empty_compound, [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]) ==
+               @flat_compound
+    end
+
+    test "a list of RDF.Descriptions and RDF.Graphs" do
+      assert Compound.add(@empty_compound, [
+               RDF.description(EX.S1, init: {EX.P1, EX.O1}),
+               RDF.graph({EX.S2, EX.P2, EX.O2})
+             ]) == @flat_compound
+    end
+
+    test "an already included triple" do
+      assert Compound.add(@flat_compound, [{EX.S2, EX.P2, EX.O2}]) == @flat_compound
+    end
+
+    test "a triple that is an element of a sub-compound" do
+      assert Compound.add(@nested_compound, [{EX.S3, EX.P3, EX.O3}]) ==
+               @compound_with_duplicate_element_in_sub_compound
+    end
+  end
+
+  describe "delete/2" do
+    test "a single triple" do
+      assert @flat_compound
+             |> Compound.delete({EX.S1, EX.P1, EX.O1})
+             |> Compound.delete({EX.S2, EX.P2, EX.O2}) == @empty_compound
+    end
+
+    test "a list of triples" do
+      assert Compound.delete(@flat_compound, [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]) ==
+               @empty_compound
+    end
+
+    test "with RDF.ex data structures" do
+      [
+        EX.Foo |> EX.bar(42) |> EX.baz(EX.O),
+        RDF.graph(EX.Foo |> EX.bar(42) |> EX.baz(EX.O))
+      ]
+      |> Enum.each(fn data ->
+        assert @flat_compound
+               |> Compound.add(data)
+               |> Compound.delete(data) ==
+                 @flat_compound
+      end)
+    end
+
+    test "a triple that is not an element" do
+      assert Compound.delete(@empty_compound, [{EX.S2, EX.P2, EX.O2}]) == @empty_compound
+    end
+
+    test "a triple that is an element of a sub-compound" do
+      assert Compound.delete(@nested_compound, [
+               {EX.S3, EX.P3, EX.O3},
+               {EX.S4, EX.P4, EX.O4}
+             ]) ==
+               Compound.put_sub_compound(@flat_compound, Compound.new([], EX.SubCompound))
+
+      assert Compound.delete(@compound_with_duplicate_element_in_sub_compound, [
+               {EX.S3, EX.P3, EX.O3},
+               {EX.S4, EX.P4, EX.O4}
+             ]) ==
+               Compound.put_sub_compound(@flat_compound, Compound.new([], EX.SubCompound))
+    end
+  end
+
+  describe "put_sub_compound/2" do
+    test "a single compound" do
+      assert Compound.put_sub_compound(@flat_compound, @sub_compound) == @nested_compound
+    end
+
+    test "multiple compounds" do
+      another_sub_compound = Compound.new([{EX.S5, EX.P5, EX.O5}], EX.AnotherSubCompound)
+
+      assert Compound.put_sub_compound(@flat_compound, [@sub_compound, another_sub_compound]) ==
+               Compound.put_sub_compound(@nested_compound, another_sub_compound)
+    end
+
+    test "an already included compound is overwritten" do
+      original_sub_compound = Compound.new([{EX.S5, EX.P5, EX.O5}], EX.SubCompound)
+      original_nested_compound = Compound.put_sub_compound(@flat_compound, original_sub_compound)
+
+      assert Compound.put_sub_compound(original_nested_compound, @sub_compound) ==
+               @nested_compound
+    end
+  end
+
+  describe "delete_sub_compound/2" do
+    test "a single compound" do
+      assert Compound.delete_sub_compound(@nested_compound, @sub_compound) == @flat_compound
+    end
+
+    test "a single compound id" do
+      assert Compound.delete_sub_compound(@nested_compound, EX.SubCompound) == @flat_compound
+    end
+
+    test "multiple compounds" do
+      another_sub_compound = Compound.new([{EX.S5, EX.P5, EX.O5}], EX.AnotherSubCompound)
+
+      assert @nested_compound
+             |> Compound.put_sub_compound(another_sub_compound)
+             |> Compound.delete_sub_compound([@sub_compound, another_sub_compound]) ==
+               @flat_compound
+    end
+
+    test "multiple compound ids" do
+      another_sub_compound = Compound.new([{EX.S5, EX.P5, EX.O5}], EX.AnotherSubCompound)
+
+      assert @nested_compound
+             |> Compound.put_sub_compound(another_sub_compound)
+             |> Compound.delete_sub_compound([EX.SubCompound, EX.AnotherSubCompound]) ==
+               @flat_compound
+    end
+  end
+
+  test "add_annotations/2" do
+    assert @flat_compound
+           |> Compound.add_annotations({EX.Foo, EX.Bar})
+           |> Compound.add_annotations({EX.Foo, EX.Baz}) ==
+             %Compound{
+               @flat_compound
+               | annotations: RDF.description(EX.Compound, init: {EX.Foo, [EX.Bar, EX.Baz]})
+             }
+  end
+
+  test "put_annotations/2" do
+    assert @flat_compound
+           |> Compound.put_annotations({EX.Foo, EX.Bar})
+           |> Compound.put_annotations({EX.Foo, EX.Baz}) ==
+             %Compound{
+               @flat_compound
+               | annotations: RDF.description(EX.Compound, init: {EX.Foo, EX.Baz})
+             }
+  end
+
+  test "delete_annotations/2" do
+    assert Compound.new([], EX.Compound, annotations: {EX.Foo, EX.Bar})
+           |> Compound.delete_annotations({EX.Foo, EX.Bar}) ==
+             @empty_compound
   end
 
   describe "Enumerable protocol" do

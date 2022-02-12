@@ -1,33 +1,43 @@
 defmodule RTC.Compound do
-  @enforce_keys [:elements, :sub_compounds, :annotations]
+  alias RDF.{Statement, Triple, IRI, BlankNode, Description}
+
+  @enforce_keys [:elements, :annotations]
   defstruct [
     # we have no explicit id field, since we're using the subject of the description for this
-    :elements,
-    :sub_compounds,
-    :annotations
+    elements: MapSet.new(),
+    sub_compounds: %{},
+    annotations: nil
   ]
 
   @type t :: %__MODULE__{
           elements: MapSet.t(),
-          sub_compounds: MapSet.t(),
-          annotations: RDF.Description.t()
+          sub_compounds: %{(IRI.t() | BlankNode.t()) => t},
+          annotations: Description.t()
         }
 
-  @type id :: RDF.Statement.subject()
-  @type coercible_id :: RDF.Statement.coercible_subject()
-  @type element :: RDF.Triple.t()
+  @type id :: Statement.subject()
+  @type coercible_id :: Statement.coercible_subject()
+
+  @type element :: Triple.t()
+
+  @type coercible_element ::
+          {
+            Statement.coercible_subject(),
+            Statement.coercible_predicate(),
+            Statement.coercible_object()
+          }
 
   @spec id(t) :: id()
   def id(%__MODULE__{} = compound), do: compound.annotations.subject
 
-  @spec new([element()], coercible_id(), keyword) :: t
+  @spec new([coercible_element()], coercible_id(), keyword) :: t
   def new(elements, compound_id, opts \\ []) do
     elements = for element <- elements, into: MapSet.new(), do: RDF.triple(element)
     sub_compounds = opts |> Keyword.get(:sub_compound) |> List.wrap() |> MapSet.new()
 
     %__MODULE__{
       elements: elements,
-      sub_compounds: sub_compounds,
+      sub_compounds: Map.new(sub_compounds, &{id(&1), &1}),
       annotations: new_annotation(compound_id, Keyword.get(opts, :annotations))
     }
   end
@@ -49,9 +59,9 @@ defmodule RTC.Compound do
       if description = graph[compound_id] do
         parent_compound_ids
         |> Enum.reduce(description, fn parent_compound_id, description ->
-          RDF.Description.delete(description, {RTC.subCompoundOf(), parent_compound_id})
+          Description.delete(description, {RTC.subCompoundOf(), parent_compound_id})
         end)
-        |> RDF.Description.pop(RTC.elements())
+        |> Description.pop(RTC.elements())
       else
         {[], []}
       end
@@ -87,9 +97,9 @@ defmodule RTC.Compound do
         &RDF.Graph.add(&2, &1, add_annotations: {RTC.elementOf(), compound_id})
       )
 
-    Enum.reduce(compound.sub_compounds, graph, fn sub_compound, graph ->
+    Enum.reduce(compound.sub_compounds, graph, fn {sub_compound_id, sub_compound}, graph ->
       graph
-      |> RDF.Graph.add({id(sub_compound), RTC.subCompoundOf(), compound_id})
+      |> RDF.Graph.add({sub_compound_id, RTC.subCompoundOf(), compound_id})
       |> RDF.Graph.add(to_rdf(sub_compound))
     end)
   end
@@ -105,16 +115,19 @@ defmodule RTC.Compound do
 
   @spec element_set(t) :: MapSet.t()
   def element_set(%__MODULE__{} = compound) do
-    Enum.reduce(compound.sub_compounds, compound.elements, fn sub_compound, element_set ->
+    Enum.reduce(compound.sub_compounds, compound.elements, fn {_, sub_compound}, element_set ->
       MapSet.union(element_set, element_set(sub_compound))
     end)
   end
 
-  @spec element?(t, element) :: boolean
+  @spec element?(t, coercible_element) :: boolean
   def element?(%__MODULE__{} = compound, element) do
     element = RDF.triple(element)
 
-    element in compound.elements or Enum.any?(compound.sub_compounds, &element?(&1, element))
+    element in compound.elements or
+      Enum.any?(compound.sub_compounds, fn {_, sub_compound} ->
+        element?(sub_compound, element)
+      end)
   end
 
   @spec size(t) :: non_neg_integer
@@ -122,6 +135,101 @@ defmodule RTC.Compound do
     compound
     |> element_set()
     |> MapSet.size()
+  end
+
+  @spec add(t, coercible_element | [coercible_element]) :: t
+  def add(compound, elements)
+
+  def add(%__MODULE__{} = compound, elements) when is_list(elements) do
+    Enum.reduce(elements, compound, &add(&2, &1))
+  end
+
+  def add(%__MODULE__{} = compound, %Description{} = description) do
+    add(compound, Description.triples(description))
+  end
+
+  def add(%__MODULE__{} = compound, %RDF.Graph{} = graph) do
+    add(compound, RDF.Graph.triples(graph))
+  end
+
+  def add(%__MODULE__{} = compound, element) do
+    %__MODULE__{compound | elements: MapSet.put(compound.elements, RDF.triple(element))}
+  end
+
+  @spec delete(t, coercible_element | [coercible_element]) :: t
+  def delete(compound, elements)
+
+  def delete(%__MODULE__{} = compound, elements) when is_list(elements) do
+    Enum.reduce(elements, compound, &delete(&2, &1))
+  end
+
+  def delete(%__MODULE__{} = compound, %Description{} = description) do
+    delete(compound, Description.triples(description))
+  end
+
+  def delete(%__MODULE__{} = compound, %RDF.Graph{} = graph) do
+    delete(compound, RDF.Graph.triples(graph))
+  end
+
+  def delete(%__MODULE__{} = compound, element) do
+    element = RDF.triple(element)
+
+    %__MODULE__{
+      compound
+      | elements: MapSet.delete(compound.elements, element),
+        sub_compounds:
+          Map.new(compound.sub_compounds, fn {id, sub_compound} ->
+            {id, delete(sub_compound, element)}
+          end)
+    }
+  end
+
+  @spec put_sub_compound(t, t | [t]) :: t
+  def put_sub_compound(compound, sub_compounds)
+
+  def put_sub_compound(%__MODULE__{} = compound, sub_compounds) when is_list(sub_compounds) do
+    Enum.reduce(sub_compounds, compound, &put_sub_compound(&2, &1))
+  end
+
+  def put_sub_compound(%__MODULE__{} = compound, %__MODULE__{} = sub_compound) do
+    %__MODULE__{
+      compound
+      | sub_compounds: Map.put(compound.sub_compounds, id(sub_compound), sub_compound)
+    }
+  end
+
+  @spec delete_sub_compound(t, t | id | [t | id]) :: t
+  def delete_sub_compound(compound, sub_compounds)
+
+  def delete_sub_compound(%__MODULE__{} = compound, sub_compounds) when is_list(sub_compounds) do
+    Enum.reduce(sub_compounds, compound, &delete_sub_compound(&2, &1))
+  end
+
+  def delete_sub_compound(%__MODULE__{} = compound, %__MODULE__{} = sub_compound) do
+    delete_sub_compound(compound, id(sub_compound))
+  end
+
+  def delete_sub_compound(%__MODULE__{} = compound, sub_compound_id) do
+    %__MODULE__{
+      compound
+      | sub_compounds:
+          Map.delete(compound.sub_compounds, Statement.coerce_subject(sub_compound_id))
+    }
+  end
+
+  @spec add_annotations(t, Description.input()) :: t
+  def add_annotations(%__MODULE__{} = compound, annotations) do
+    %__MODULE__{compound | annotations: Description.add(compound.annotations, annotations)}
+  end
+
+  @spec put_annotations(t, Description.input()) :: t
+  def put_annotations(%__MODULE__{} = compound, annotations) do
+    %__MODULE__{compound | annotations: Description.put(compound.annotations, annotations)}
+  end
+
+  @spec delete_annotations(t, Description.input()) :: t
+  def delete_annotations(%__MODULE__{} = compound, annotations) do
+    %__MODULE__{compound | annotations: Description.delete(compound.annotations, annotations)}
   end
 
   defimpl Enumerable do
