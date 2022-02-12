@@ -104,7 +104,10 @@ defmodule RTC.Compound do
     end)
   end
 
-  defdelegate graph(compound), to: __MODULE__, as: :to_rdf
+  @spec graph(t) :: RDF.Graph.t()
+  def graph(%__MODULE__{} = compound) do
+    RDF.graph(name: id(compound), init: elements(compound))
+  end
 
   @spec elements(t) :: [element]
   def elements(%__MODULE__{} = compound) do

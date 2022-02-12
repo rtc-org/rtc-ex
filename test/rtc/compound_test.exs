@@ -237,7 +237,7 @@ defmodule RTC.CompoundTest do
                |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
     end
 
-    test "an empty compound" do
+    test "the empty compound" do
       assert Compound.to_rdf(@empty_compound) == RDF.graph(name: RDF.iri(EX.Compound))
     end
 
@@ -265,6 +265,26 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  describe "graph/1" do
+    test "the empty compound" do
+      assert Compound.graph(@empty_compound) == RDF.graph(name: EX.Compound)
+    end
+
+    test "a flat compound" do
+      assert Compound.graph(@flat_compound) == RDF.graph(name: EX.Compound, init: @triples)
+    end
+
+    test "a nested compound" do
+      assert Compound.graph(@nested_compound) ==
+               RDF.graph(name: EX.Compound, init: @triples ++ @other_triples)
+    end
+
+    test "compound with blank node id" do
+      bnode = RDF.bnode("compound")
+      assert Compound.new([], bnode) |> Compound.graph() == RDF.graph(name: bnode)
+    end
+  end
+
   describe "element_set/1" do
     test "returns the element triples as a list" do
       assert Compound.element_set(@flat_compound) ==
@@ -276,7 +296,7 @@ defmodule RTC.CompoundTest do
                Enum.map(@triples ++ @other_triples, &RDF.triple/1) |> MapSet.new()
     end
 
-    test "an empty compound" do
+    test "the empty compound" do
       assert Compound.element_set(@empty_compound) == MapSet.new()
     end
 
@@ -296,7 +316,7 @@ defmodule RTC.CompoundTest do
                Enum.map(@triples ++ @other_triples, &RDF.triple/1)
     end
 
-    test "an empty compound" do
+    test "the empty compound" do
       assert Compound.elements(@empty_compound) == []
     end
 
@@ -325,7 +345,7 @@ defmodule RTC.CompoundTest do
   end
 
   describe "size/1" do
-    test "an empty compound" do
+    test "the empty compound" do
       assert Compound.size(@empty_compound) == 0
     end
 
