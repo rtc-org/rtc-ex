@@ -9,6 +9,6 @@ defmodule RTC.NS do
   The RTC vocabulary.
   """
   defvocab RTC,
-    base_iri: "http://example.com/rtc#",
+    base_iri: "https://w3id.org/rtc#",
     file: "rtc.ttl"
 end
