@@ -3,6 +3,14 @@ defmodule RTC do
   RDF Triple Compounds
   """
 
+  alias RDF.Resource.Generator
+
+  @id_generator (Application.get_env(:rtc, :id) || [generator: RDF.BlankNode])
+                |> Generator.config()
+
+  def id, do: Generator.generate(@id_generator, nil)
+  def id(args), do: Generator.generate(@id_generator, args)
+
   ############################################################################
   # These alias functions for the RTC.NS.RTC namespace are mandatory.
   # Without them the property functions are inaccessible, since the namespace

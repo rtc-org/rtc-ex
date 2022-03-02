@@ -4,6 +4,7 @@ defmodule RTC.CompoundTest do
   doctest RTC.Compound
 
   alias RTC.Compound
+  alias RDF.BlankNode
 
   @triples [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]
   @flat_compound %Compound{
@@ -44,7 +45,7 @@ defmodule RTC.CompoundTest do
     annotations: RDF.description(EX.Compound)
   }
 
-  describe "new/2" do
+  describe "new with an explicitly given id" do
     test "constructs a compound from a list of triples" do
       assert Compound.new(@triples, EX.Compound) == @flat_compound
     end
@@ -75,9 +76,7 @@ defmodule RTC.CompoundTest do
       assert Compound.new(@triples, EX.Compound, sub_compound: @sub_compound) ==
                @nested_compound
     end
-  end
 
-  describe "new/3" do
     test "compound annotations are stored" do
       annotations = %{EX.ap1() => EX.AO1, EX.ap2() => EX.AO2}
 
@@ -108,6 +107,45 @@ defmodule RTC.CompoundTest do
                  annotations: RDF.description(EX.Compound, init: annotations)
                }
     end
+  end
+
+  describe "new without an explicitly given id" do
+    test "generates a blank node as id" do
+      assert %Compound{} = compound = Compound.new(@triples)
+      assert %BlankNode{} = id = Compound.id(compound)
+      assert Compound.reset_id(@flat_compound, id) == compound
+
+      description = RDF.description(EX.S, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
+
+      assert %Compound{} = compound = Compound.new(description)
+      assert %BlankNode{} = id = Compound.id(compound)
+
+      assert compound ==
+               %Compound{
+                 triples:
+                   MapSet.new([
+                     RDF.triple({EX.S, EX.P1, EX.O1}),
+                     RDF.triple({EX.S, EX.P2, EX.O2})
+                   ]),
+                 annotations: RDF.description(id)
+               }
+
+      assert %Compound{} = compound = @triples |> RDF.graph() |> Compound.new()
+      assert %BlankNode{} = id = Compound.id(compound)
+      assert Compound.reset_id(@flat_compound, id) == compound
+    end
+
+    test "constructs a nested compound" do
+      assert %Compound{} = compound = Compound.new(@triples, sub_compound: @sub_compound)
+      assert %BlankNode{} = id = Compound.id(compound)
+      assert Compound.reset_id(@nested_compound, id) == compound
+    end
+  end
+
+  test "reset_id/2" do
+    assert @flat_compound
+           |> Compound.reset_id(EX.new_id())
+           |> Compound.id() == EX.new_id()
   end
 
   describe "from_rdf/2" do

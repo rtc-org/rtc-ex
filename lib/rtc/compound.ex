@@ -1,5 +1,5 @@
 defmodule RTC.Compound do
-  alias RDF.{Statement, Triple, IRI, BlankNode, Description, Graph}
+  alias RDF.{Statement, Triple, Description, Graph}
 
   @enforce_keys [:triples, :annotations]
   defstruct [
@@ -9,29 +9,35 @@ defmodule RTC.Compound do
     annotations: nil
   ]
 
+  @type id :: RDF.Resource.t()
+  @type coercible_id :: Statement.coercible_subject()
+
   @type t :: %__MODULE__{
           triples: MapSet.t(),
-          sub_compounds: %{(IRI.t() | BlankNode.t()) => t},
+          sub_compounds: %{id => t()},
           annotations: Description.t()
         }
 
-  @type id :: Statement.subject()
-  @type coercible_id :: Statement.coercible_subject()
-
   @type triple :: Triple.t()
-
-  @type coercible_triple ::
-          {
-            Statement.coercible_subject(),
-            Statement.coercible_predicate(),
-            Statement.coercible_object()
-          }
+  @type coercible_triple :: Triple.coercible_t()
 
   @spec id(t) :: id()
   def id(%__MODULE__{} = compound), do: compound.annotations.subject
 
+  @spec reset_id(t, id()) :: t()
+  def reset_id(%__MODULE__{} = compound, id) do
+    %{compound | annotations: Description.change_subject(compound.annotations, id)}
+  end
+
+  @spec new([coercible_triple()]) :: t
+  def new(triples), do: new(triples, [])
+
+  @spec new([coercible_triple()], coercible_id() | keyword) :: t
+  def new(triples, opts) when is_list(opts), do: new(triples, RTC.id(), opts)
+  def new(triples, compound_id), do: new(triples, compound_id, [])
+
   @spec new([coercible_triple()], coercible_id(), keyword) :: t
-  def new(triples, compound_id, opts \\ []) do
+  def new(triples, compound_id, opts) do
     triples = for triple <- triples, into: MapSet.new(), do: RDF.triple(triple)
     sub_compounds = opts |> Keyword.get(:sub_compound) |> List.wrap() |> MapSet.new()
 

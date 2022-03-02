@@ -24,6 +24,7 @@ defmodule RTC.MixProject do
   defp deps do
     [
       {:rdf, "~> 0.10"},
+      {:elixir_uuid, "~> 1.2"},
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
       {:benchee, "~> 1.0", only: :dev}
