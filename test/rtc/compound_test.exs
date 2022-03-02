@@ -140,6 +140,22 @@ defmodule RTC.CompoundTest do
       assert %BlankNode{} = id = Compound.id(compound)
       assert Compound.reset_id(@nested_compound, id) == compound
     end
+
+    test "constructs a nested compound from a nested list of triples" do
+      nested_triples = [{EX.S2, EX.P2, EX.O2}]
+      triples = [{EX.S1, EX.P1, EX.O1}, nested_triples, {EX.S3, EX.P3, EX.O3}]
+
+      assert %Compound{} = compound = Compound.new(triples, EX.Compound)
+      assert [%Compound{} = sub_compound] = Compound.sub_compounds(compound)
+      assert %BlankNode{} = id = Compound.id(sub_compound)
+      assert sub_compound == Compound.new(nested_triples, id)
+
+      assert %Compound{} = compound = Compound.new(triples)
+      assert %BlankNode{} = Compound.id(compound)
+      assert [%Compound{} = sub_compound] = Compound.sub_compounds(compound)
+      assert %BlankNode{} = id = Compound.id(sub_compound)
+      assert sub_compound == Compound.new(nested_triples, id)
+    end
   end
 
   test "reset_id/2" do
