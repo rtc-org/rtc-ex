@@ -152,9 +152,6 @@ defmodule RTC.Compound do
     %{compound | annotations: Description.change_subject(compound.annotations, id)}
   end
 
-  @spec sub_compounds(t) :: [t]
-  def sub_compounds(%__MODULE__{} = compound), do: Map.values(compound.sub_compounds)
-
   @spec triples(t) :: [triple]
   def triples(%__MODULE__{} = compound) do
     compound
@@ -233,6 +230,9 @@ defmodule RTC.Compound do
     }
   end
 
+  @spec sub_compounds(t) :: [t]
+  def sub_compounds(%__MODULE__{} = compound), do: Map.values(compound.sub_compounds)
+
   @spec put_sub_compound(t, t | [t]) :: t
   def put_sub_compound(compound, sub_compounds)
 
@@ -265,6 +265,9 @@ defmodule RTC.Compound do
           Map.delete(compound.sub_compounds, Statement.coerce_subject(sub_compound_id))
     }
   end
+
+  @spec annotations(t) :: Description.t()
+  def annotations(%__MODULE__{} = compound), do: compound.annotations
 
   @spec add_annotations(t, Description.input()) :: t
   def add_annotations(%__MODULE__{} = compound, annotations) do
