@@ -19,10 +19,14 @@ defmodule RTC do
 
   defdelegate elementOf(), to: RTC.NS.RTC
   defdelegate elementOf(subject, objects), to: RTC.NS.RTC
+  defdelegate element_of(), to: RTC.NS.RTC
+  defdelegate element_of(subject, objects), to: RTC.NS.RTC
 
   defdelegate elements(), to: RTC.NS.RTC
   defdelegate elements(subject, objects), to: RTC.NS.RTC
 
   defdelegate subCompoundOf(), to: RTC.NS.RTC
   defdelegate subCompoundOf(subject, objects), to: RTC.NS.RTC
+  defdelegate sub_compound_of(), to: RTC.NS.RTC
+  defdelegate sub_compound_of(subject, objects), to: RTC.NS.RTC
 end

@@ -10,5 +10,9 @@ defmodule RTC.NS do
   """
   defvocab RTC,
     base_iri: "https://w3id.org/rtc#",
-    file: "rtc.ttl"
+    file: "rtc.ttl",
+    alias: [
+      element_of: "elementOf",
+      sub_compound_of: "subCompoundOf"
+    ]
 end
