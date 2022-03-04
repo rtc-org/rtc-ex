@@ -566,15 +566,15 @@ defmodule RTC.CompoundTest do
   end
 
   describe "put_sub_compound/2" do
-    test "a single compound" do
+    test "with a compound" do
       assert Compound.put_sub_compound(@flat_compound, @sub_compound) == @nested_compound
     end
 
-    test "multiple compounds" do
-      another_sub_compound = Compound.new([{EX.S5, EX.P5, EX.O5}], EX.AnotherSubCompound)
-
-      assert Compound.put_sub_compound(@flat_compound, [@sub_compound, another_sub_compound]) ==
-               Compound.put_sub_compound(@nested_compound, another_sub_compound)
+    test "with triples, a compound is created implicitly" do
+      assert %Compound{} = compound = Compound.put_sub_compound(@flat_compound, @other_triples)
+      assert [%Compound{} = sub_compound] = Compound.sub_compounds(compound)
+      assert %BlankNode{} = id = Compound.id(sub_compound)
+      assert sub_compound == Compound.new(@other_triples, id)
     end
 
     test "an already included compound is overwritten" do
@@ -587,30 +587,12 @@ defmodule RTC.CompoundTest do
   end
 
   describe "delete_sub_compound/2" do
-    test "a single compound" do
+    test "with a compound" do
       assert Compound.delete_sub_compound(@nested_compound, @sub_compound) == @flat_compound
     end
 
-    test "a single compound id" do
+    test "with a compound id" do
       assert Compound.delete_sub_compound(@nested_compound, EX.SubCompound) == @flat_compound
-    end
-
-    test "multiple compounds" do
-      another_sub_compound = Compound.new([{EX.S5, EX.P5, EX.O5}], EX.AnotherSubCompound)
-
-      assert @nested_compound
-             |> Compound.put_sub_compound(another_sub_compound)
-             |> Compound.delete_sub_compound([@sub_compound, another_sub_compound]) ==
-               @flat_compound
-    end
-
-    test "multiple compound ids" do
-      another_sub_compound = Compound.new([{EX.S5, EX.P5, EX.O5}], EX.AnotherSubCompound)
-
-      assert @nested_compound
-             |> Compound.put_sub_compound(another_sub_compound)
-             |> Compound.delete_sub_compound([EX.SubCompound, EX.AnotherSubCompound]) ==
-               @flat_compound
     end
   end
 

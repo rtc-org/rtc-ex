@@ -20,17 +20,24 @@ defmodule RTC.Compound do
 
   @type triple :: Triple.t()
   @type coercible_triple :: Triple.coercible_t()
+  @type coercible_triples ::
+          [Triple.coercible_t()]
+          | Graph.t()
+          | Description.t()
+          | Graph.t()
+          | Description.t()
+          | [coercible_triples()]
 
   @element_style Application.get_env(:rtc, :element_style, :element_of)
 
-  @spec new([coercible_triple() | [coercible_triple()]]) :: t
+  @spec new(coercible_triples()) :: t
   def new(triples), do: new(triples, [])
 
-  @spec new([coercible_triple() | [coercible_triple()]], coercible_id() | keyword) :: t
+  @spec new(coercible_triples(), coercible_id() | keyword) :: t
   def new(triples, opts) when is_list(opts), do: new(triples, RTC.id(), opts)
   def new(triples, compound_id), do: new(triples, compound_id, [])
 
-  @spec new([coercible_triple() | [coercible_triple()]], coercible_id(), keyword) :: t
+  @spec new(coercible_triples(), coercible_id(), keyword) :: t
   def new(triples, compound_id, opts) do
     {triples, sub_compounds} =
       Enum.reduce(triples, {MapSet.new(), MapSet.new()}, fn
@@ -183,7 +190,7 @@ defmodule RTC.Compound do
     |> MapSet.size()
   end
 
-  @spec add(t, coercible_triple | [coercible_triple]) :: t
+  @spec add(t, coercible_triple() | coercible_triples) :: t
   def add(compound, triples)
 
   def add(%__MODULE__{} = compound, triples) when is_list(triples) do
@@ -202,7 +209,7 @@ defmodule RTC.Compound do
     %__MODULE__{compound | triples: MapSet.put(compound.triples, RDF.triple(triple))}
   end
 
-  @spec delete(t, coercible_triple | [coercible_triple]) :: t
+  @spec delete(t, coercible_triple | coercible_triples) :: t
   def delete(compound, triples)
 
   def delete(%__MODULE__{} = compound, triples) when is_list(triples) do
@@ -233,12 +240,8 @@ defmodule RTC.Compound do
   @spec sub_compounds(t) :: [t]
   def sub_compounds(%__MODULE__{} = compound), do: Map.values(compound.sub_compounds)
 
-  @spec put_sub_compound(t, t | [t]) :: t
+  @spec put_sub_compound(t, t | coercible_triples) :: t
   def put_sub_compound(compound, sub_compounds)
-
-  def put_sub_compound(%__MODULE__{} = compound, sub_compounds) when is_list(sub_compounds) do
-    Enum.reduce(sub_compounds, compound, &put_sub_compound(&2, &1))
-  end
 
   def put_sub_compound(%__MODULE__{} = compound, %__MODULE__{} = sub_compound) do
     %__MODULE__{
@@ -247,12 +250,10 @@ defmodule RTC.Compound do
     }
   end
 
-  @spec delete_sub_compound(t, t | id | [t | id]) :: t
-  def delete_sub_compound(compound, sub_compounds)
+  def put_sub_compound(compound, triples), do: put_sub_compound(compound, new(triples))
 
-  def delete_sub_compound(%__MODULE__{} = compound, sub_compounds) when is_list(sub_compounds) do
-    Enum.reduce(sub_compounds, compound, &delete_sub_compound(&2, &1))
-  end
+  @spec delete_sub_compound(t, t | id) :: t
+  def delete_sub_compound(compound, sub_compound)
 
   def delete_sub_compound(%__MODULE__{} = compound, %__MODULE__{} = sub_compound) do
     delete_sub_compound(compound, id(sub_compound))
