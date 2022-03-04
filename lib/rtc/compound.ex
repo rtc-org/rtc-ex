@@ -21,6 +21,8 @@ defmodule RTC.Compound do
   @type triple :: Triple.t()
   @type coercible_triple :: Triple.coercible_t()
 
+  @element_style Application.get_env(:rtc, :element_style, :element_of)
+
   @spec new([coercible_triple() | [coercible_triple()]]) :: t
   def new(triples), do: new(triples, [])
 
@@ -108,22 +110,33 @@ defmodule RTC.Compound do
     )
   end
 
-  @spec to_rdf(t) :: Graph.t()
-  def to_rdf(%__MODULE__{} = compound) do
-    compound_id = id(compound)
-
-    graph =
-      Enum.reduce(
-        compound.triples,
-        RDF.graph(name: compound_id, init: compound.annotations),
-        &Graph.add(&2, &1, add_annotations: {RTC.elementOf(), compound_id})
-      )
+  @spec to_rdf(t, keyword) :: Graph.t()
+  def to_rdf(%__MODULE__{} = compound, opts \\ []) do
+    graph = elements_to_rdf(compound, Keyword.get(opts, :element_style, @element_style))
 
     Enum.reduce(compound.sub_compounds, graph, fn {sub_compound_id, sub_compound}, graph ->
       graph
-      |> Graph.add({sub_compound_id, RTC.subCompoundOf(), compound_id})
-      |> Graph.add(to_rdf(sub_compound))
+      |> Graph.add({sub_compound_id, RTC.subCompoundOf(), id(compound)})
+      |> Graph.add(to_rdf(sub_compound, opts))
     end)
+  end
+
+  defp elements_to_rdf(compound, :element_of) do
+    compound_id = id(compound)
+
+    Enum.reduce(
+      compound.triples,
+      RDF.graph(name: compound_id, init: compound.annotations),
+      &Graph.add(&2, &1, add_annotations: {RTC.elementOf(), compound_id})
+    )
+  end
+
+  defp elements_to_rdf(compound, :elements) do
+    triples = MapSet.to_list(compound.triples)
+
+    RDF.graph(name: id(compound))
+    |> Graph.add(triples)
+    |> Graph.add(compound.annotations |> RTC.elements(triples))
   end
 
   @spec graph(t) :: Graph.t()

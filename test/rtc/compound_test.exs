@@ -276,15 +276,15 @@ defmodule RTC.CompoundTest do
     end
   end
 
-  describe "to_rdf/1" do
+  describe "to_rdf with :element_of style" do
     test "returns a graph with the triples and the RTC annotations with rtc:elementOf" do
-      assert Compound.to_rdf(@flat_compound) ==
+      assert Compound.to_rdf(@flat_compound, element_style: :element_of) ==
                RDF.graph(name: RDF.iri(EX.Compound))
                |> Graph.add(@triples, add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
     end
 
     test "with sub-compound" do
-      assert Compound.to_rdf(@nested_compound) ==
+      assert Compound.to_rdf(@nested_compound, element_style: :element_of) ==
                RDF.graph(name: RDF.iri(EX.Compound))
                |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
                |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
@@ -292,11 +292,14 @@ defmodule RTC.CompoundTest do
     end
 
     test "the empty compound" do
-      assert Compound.to_rdf(@empty_compound) == RDF.graph(name: RDF.iri(EX.Compound))
+      assert Compound.to_rdf(@empty_compound, element_style: :element_of) ==
+               RDF.graph(name: RDF.iri(EX.Compound))
     end
 
     test "a compound with a duplicate triples in a sub-compound" do
-      assert Compound.to_rdf(@compound_with_duplicate_triple_in_sub_compound) ==
+      assert Compound.to_rdf(@compound_with_duplicate_triple_in_sub_compound,
+               element_style: :element_of
+             ) ==
                RDF.graph(name: RDF.iri(EX.Compound))
                |> Graph.add([{EX.S3, EX.P3, EX.O3} | @triples],
                  add_annotations: {RTC.elementOf(), EX.Compound}
@@ -310,12 +313,74 @@ defmodule RTC.CompoundTest do
                sub_compound: Compound.add_annotations(@sub_compound, {EX.foo2(), EX.Bar2}),
                annotations: {EX.foo1(), EX.Bar1}
              )
-             |> Compound.to_rdf() ==
+             |> Compound.to_rdf(element_style: :element_of) ==
                RDF.graph(name: RDF.iri(EX.Compound))
                |> Graph.add(@triples, add_annotations: {RTC.elementOf(), EX.Compound})
                |> Graph.add(@other_triples, add_annotations: {RTC.elementOf(), EX.SubCompound})
                |> Graph.add(EX.Compound |> EX.foo1(EX.Bar1))
                |> Graph.add(EX.SubCompound |> RTC.subCompoundOf(EX.Compound) |> EX.foo2(EX.Bar2))
+    end
+  end
+
+  describe "to_rdf with :elements style" do
+    test "returns a graph with the triples and the RTC annotations with rtc:elements" do
+      assert Compound.to_rdf(@flat_compound, element_style: :elements) ==
+               RDF.graph(name: RDF.iri(EX.Compound))
+               |> Graph.add(@triples)
+               |> Graph.add(EX.Compound |> RTC.elements(@triples))
+    end
+
+    test "with sub-compound" do
+      assert Compound.to_rdf(@nested_compound, element_style: :elements) ==
+               RDF.graph(name: RDF.iri(EX.Compound))
+               |> Graph.add(@triples)
+               |> Graph.add(EX.Compound |> RTC.elements(@triples))
+               |> Graph.add(@other_triples)
+               |> Graph.add(
+                 EX.SubCompound
+                 |> RTC.elements(@other_triples)
+                 |> RTC.subCompoundOf(EX.Compound)
+               )
+    end
+
+    test "the empty compound" do
+      assert Compound.to_rdf(@empty_compound, element_style: :elements) ==
+               RDF.graph(name: RDF.iri(EX.Compound))
+    end
+
+    test "a compound with a duplicate triples in a sub-compound" do
+      triples = [{EX.S3, EX.P3, EX.O3} | @triples]
+
+      assert Compound.to_rdf(@compound_with_duplicate_triple_in_sub_compound,
+               element_style: :elements
+             ) ==
+               RDF.graph(name: RDF.iri(EX.Compound))
+               |> Graph.add(triples)
+               |> Graph.add(EX.Compound |> RTC.elements(triples))
+               |> Graph.add(@other_triples)
+               |> Graph.add(
+                 EX.SubCompound
+                 |> RTC.elements(@other_triples)
+                 |> RTC.subCompoundOf(EX.Compound)
+               )
+    end
+
+    test "annotations are included" do
+      assert Compound.new(@triples, EX.Compound,
+               sub_compound: Compound.add_annotations(@sub_compound, {EX.foo2(), EX.Bar2}),
+               annotations: {EX.foo1(), EX.Bar1}
+             )
+             |> Compound.to_rdf(element_style: :elements) ==
+               RDF.graph(name: RDF.iri(EX.Compound))
+               |> Graph.add(@triples)
+               |> Graph.add(EX.Compound |> RTC.elements(@triples) |> EX.foo1(EX.Bar1))
+               |> Graph.add(@other_triples)
+               |> Graph.add(
+                 EX.SubCompound
+                 |> RTC.elements(@other_triples)
+                 |> RTC.subCompoundOf(EX.Compound)
+                 |> EX.foo2(EX.Bar2)
+               )
     end
   end
 

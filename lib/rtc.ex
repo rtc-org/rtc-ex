@@ -5,7 +5,7 @@ defmodule RTC do
 
   alias RDF.Resource.Generator
 
-  @id_generator (Application.get_env(:rtc, :id) || [generator: RDF.BlankNode])
+  @id_generator Application.get_env(:rtc, :id, generator: RDF.BlankNode)
                 |> Generator.config()
 
   def id, do: Generator.generate(@id_generator, nil)
