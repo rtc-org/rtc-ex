@@ -5,11 +5,12 @@ defmodule RTC do
 
   alias RDF.Resource.Generator
 
-  @id_generator Application.get_env(:rtc, :id, generator: RDF.BlankNode)
-                |> Generator.config()
+  def id, do: Generator.generate(generator_config())
+  def id(args), do: Generator.generate(generator_config(), args)
 
-  def id, do: Generator.generate(@id_generator, nil)
-  def id(args), do: Generator.generate(@id_generator, args)
+  defp generator_config do
+    Application.get_env(:rtc, :id, generator: RDF.BlankNode)
+  end
 
   ############################################################################
   # These alias functions for the RTC.NS.RTC namespace are mandatory.
