@@ -1,6 +1,9 @@
 defmodule RTC do
   @moduledoc """
-  RDF Triple Compounds
+  RDF Triple Compounds.
+
+  This library provides the `RTC.Compound` struct for working with
+  RDF Triple Compounds.
   """
 
   alias RDF.Resource.Generator

@@ -1,4 +1,45 @@
 defmodule RTC.Compound do
+  @moduledoc """
+  A struct representing an RDF Triple Compound.
+
+  An RDF Triple Compound is a set of triples embedded in an RDF graph.
+
+  You can create a such a set of triples either from scratch with the `new/1`
+  function or you can load an already existing compound from an RDF graph with
+  the `from_rdf/2` function.
+
+  You can then use the various functions on this module to get its triples,
+  sub-compounds and annotations or edit them.
+  Whenever a function accepts triples they can be given as
+
+  - coercible triples, i.e. 3-element tuples of elements which can coerced
+    to RDF terms,
+  - an `RDF.Description` or
+  - an `RDF.Graph`
+
+  Finally, you can get back the RDF form of the compound with `to_rdf/2`.
+  If you only want a RDF graph of the contained triples (without the annotations),
+  you can use the `graph/1` function.
+
+
+  ## Auto-generated ids
+
+  Various functions can be used in such a way, that the they will create compounds with
+  a proper resource identifier implicitly. By default, they will create a random blank
+  node, but the identifier creation behavior can be configured and customized via
+  `RDF.Resource.Generator`s.
+  For example, to create UUIDv4 URIs instead, you could use this configuration in your
+  `config.exs`:
+
+      config :rtc, :id,
+        generator: RDF.IRI.UUID.Generator,
+        uuid_version: 4,
+        prefix: "http://example.com/ns/"
+
+  See [the guide on resource generators](https://rdf-elixir.dev/rdf-ex/resource-generators.html)
+  for more information and available generators.
+  """
+
   alias RDF.{Statement, Triple, Description, Graph}
 
   @enforce_keys [:triples, :annotations]
@@ -30,13 +71,50 @@ defmodule RTC.Compound do
 
   @element_style Application.get_env(:rtc, :element_style, :element_of)
 
+  @doc """
+  Creates a new compound with the given set of triples.
+
+  An id for the compound is automatically generated.
+  If you want to define the id yourself, use `new/2` or `new/3`.
+
+  When a list of triples is given which contains nested lists of triples,
+  sub-compounds with auto-generated ids are generated and added for each
+  of the nested lists.
+
+  See the module documentation for information on auto-generated ids and the
+  various ways to specify triples.
+  """
   @spec new(coercible_triples()) :: t
   def new(triples), do: new(triples, [])
 
+  @doc """
+  Creates a new compound with the given set of triples and the given id.
+
+  When a list of triples is given which contains nested lists of triples,
+  sub-compounds with auto-generated ids are generated and added for each
+  of the nested lists.
+
+  If a keyword list is given as the second argument, an id is generated and
+  delegated to `new/3`.
+
+  See the module documentation for information on auto-generated ids and the
+  various ways to specify triples.
+  """
   @spec new(coercible_triples(), coercible_id() | keyword) :: t
   def new(triples, opts) when is_list(opts), do: new(triples, RTC.id(), opts)
   def new(triples, compound_id), do: new(triples, compound_id, [])
 
+  @doc """
+  Creates a new compound with the given set of triples and the given id.
+
+  When a list of triples is given which contains nested lists of triples,
+  sub-compounds with auto-generated ids are generated and added for each
+  of the nested lists.
+  Alternatively, the `sub_compound` keyword can be used to provide one
+  or a list of sub-compounds to be added.
+
+  See the module documentation for information on the various ways to specify triples.
+  """
   @spec new(coercible_triples(), coercible_id(), keyword) :: t
   def new(triples, compound_id, opts) do
     {triples, sub_compounds} =
@@ -78,6 +156,12 @@ defmodule RTC.Compound do
   defp new_annotation(compound_id, description),
     do: RDF.description(compound_id, init: description)
 
+  @doc """
+  Retrieves the compound with the given `compound_id` from a `RDF.Graph`.
+
+  When no compound with the given `compound_id` can be found in the given
+  `graph`, an empty compound is returned.
+  """
   @spec from_rdf(Graph.t(), coercible_id()) :: t
   def from_rdf(%Graph{} = graph, compound_id), do: do_from_rdf(graph, compound_id, [])
 
@@ -117,6 +201,29 @@ defmodule RTC.Compound do
     )
   end
 
+  @doc """
+  Creates an RDF-star graph of the given compound with all RTC annotations.
+
+  The style for how the assignments of the triples are encoded can be specified
+  with the `:element_style` keyword and one the following values:
+
+  - `:element_of`: Uses the `rtc:elementOf` property to assign each of the triples
+    individually to the compound. This has the benefit that in the Turtle-star
+    serializations the [annotation syntax](https://w3c.github.io/rdf-star/cg-spec/2021-12-17.html#annotation-syntax)
+    can be used, which doesn't require repeating the assertion and is therefore
+    more compact.
+  - `:elements`: Assigns the triples to the compound, by listing them as objects
+    of the inverse `rtc:elements` property. This has the benefit that the actual
+    assertion are not pervaded by annotations and the compound resource can be
+    serialized in an isolated and self-contained manner.
+
+  When no `:element_style` is specified, the `:element_of` style is used by default.
+  You can however configure a different default style in your application with
+  the following configuration on your `config.exs` files:
+
+      config :rtc, :element_style, :element_of
+
+  """
   @spec to_rdf(t, keyword) :: Graph.t()
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
     graph = elements_to_rdf(compound, Keyword.get(opts, :element_style, @element_style))
@@ -146,19 +253,31 @@ defmodule RTC.Compound do
     |> Graph.add(compound.annotations |> RTC.elements(triples))
   end
 
+  @doc """
+  Creates an RDF graph of the triples in the compound (incl. its sub-compounds) without the annotations.
+  """
   @spec graph(t) :: Graph.t()
   def graph(%__MODULE__{} = compound) do
     RDF.graph(name: id(compound), init: triples(compound))
   end
 
+  @doc """
+  Returns the id of the given `compound`.
+  """
   @spec id(t) :: id()
   def id(%__MODULE__{} = compound), do: compound.annotations.subject
 
+  @doc """
+  Sets a new id on the given `compound`.
+  """
   @spec reset_id(t, id()) :: t()
   def reset_id(%__MODULE__{} = compound, id) do
     %{compound | annotations: Description.change_subject(compound.annotations, id)}
   end
 
+  @doc """
+  Returns a list of the triples in the given `compound`.
+  """
   @spec triples(t) :: [triple]
   def triples(%__MODULE__{} = compound) do
     compound
@@ -166,6 +285,9 @@ defmodule RTC.Compound do
     |> MapSet.to_list()
   end
 
+  @doc """
+  Returns the set of triples in the given `compound`.
+  """
   @spec triple_set(t) :: MapSet.t()
   def triple_set(%__MODULE__{} = compound) do
     Enum.reduce(compound.sub_compounds, compound.triples, fn {_, sub_compound}, triple_set ->
@@ -173,6 +295,9 @@ defmodule RTC.Compound do
     end)
   end
 
+  @doc """
+  Returns whether the given `triple` is an element of the given `compound`.
+  """
   @spec element?(t, coercible_triple) :: boolean
   def element?(%__MODULE__{} = compound, triple) do
     triple = RDF.triple(triple)
@@ -183,6 +308,9 @@ defmodule RTC.Compound do
       end)
   end
 
+  @doc """
+  Returns the number of triple in the given `compound`.
+  """
   @spec size(t) :: non_neg_integer
   def size(%__MODULE__{} = compound) do
     compound
@@ -190,6 +318,11 @@ defmodule RTC.Compound do
     |> MapSet.size()
   end
 
+  @doc """
+  Adds triples to the given `compound`.
+
+  See the module documentation for the different ways to specify triples.
+  """
   @spec add(t, coercible_triple() | coercible_triples) :: t
   def add(compound, triples)
 
@@ -209,6 +342,13 @@ defmodule RTC.Compound do
     %__MODULE__{compound | triples: MapSet.put(compound.triples, RDF.triple(triple))}
   end
 
+  @doc """
+  Deletes triples from the given `compound`.
+
+  See the module documentation for the different ways to specify triples.
+
+  If a triple occurs in multiple sub-compounds, it gets deleted from all of them.
+  """
   @spec delete(t, coercible_triple | coercible_triples) :: t
   def delete(compound, triples)
 
@@ -237,9 +377,20 @@ defmodule RTC.Compound do
     }
   end
 
+  @doc """
+  Returns a list of the sub-compounds of the given `compound`.
+  """
   @spec sub_compounds(t) :: [t]
   def sub_compounds(%__MODULE__{} = compound), do: Map.values(compound.sub_compounds)
 
+  @doc """
+  Adds a sub-compound to the given `compound`.
+
+  If a sub-compound with the same id already exists, it gets overwritten.
+
+  When just triples are passed instead of compound, a compound with an
+  auto-generated id is created implicitly.
+  """
   @spec put_sub_compound(t, t | coercible_triples) :: t
   def put_sub_compound(compound, sub_compounds)
 
@@ -252,6 +403,14 @@ defmodule RTC.Compound do
 
   def put_sub_compound(compound, triples), do: put_sub_compound(compound, new(triples))
 
+  @doc """
+  Deletes a sub-compound to the given `compound`.
+
+  The `sub_compound` to be deleted can be specified by id or given directly.
+  Note however, that the elements of the sub-compound to be deleted are not
+  taken into consideration, just its id is used to address the sub-compound
+  to be deleted.
+  """
   @spec delete_sub_compound(t, t | id) :: t
   def delete_sub_compound(compound, sub_compound)
 
@@ -267,19 +426,34 @@ defmodule RTC.Compound do
     }
   end
 
+  @doc """
+  Returns the description of the given `compound`.
+  """
   @spec annotations(t) :: Description.t()
   def annotations(%__MODULE__{} = compound), do: compound.annotations
 
+  @doc """
+  Adds statements to the description of the given `compound`.
+  """
   @spec add_annotations(t, Description.input()) :: t
   def add_annotations(%__MODULE__{} = compound, annotations) do
     %__MODULE__{compound | annotations: Description.add(compound.annotations, annotations)}
   end
 
+  @doc """
+  Adds statements to the description of the given `compound`,
+  overwriting any previous statements with the given properties.
+  """
   @spec put_annotations(t, Description.input()) :: t
   def put_annotations(%__MODULE__{} = compound, annotations) do
     %__MODULE__{compound | annotations: Description.put(compound.annotations, annotations)}
   end
 
+  @doc """
+  Deletes statements from the description of the given `compound`.
+
+  Statements not part of the description are simply ignored.
+  """
   @spec delete_annotations(t, Description.input()) :: t
   def delete_annotations(%__MODULE__{} = compound, annotations) do
     %__MODULE__{compound | annotations: Description.delete(compound.annotations, annotations)}

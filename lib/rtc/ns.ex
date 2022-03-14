@@ -7,6 +7,11 @@ defmodule RTC.NS do
 
   @vocabdoc """
   The RTC vocabulary.
+
+  Since this module has the same basename as the top-level module, you can't
+  alias it. Therefore, the top-level `RTC` module has delegators for all of the
+  property functions in this module, so you can use them directly on the
+  top-level module without an alias.
   """
   defvocab RTC,
     base_iri: "https://w3id.org/rtc#",
