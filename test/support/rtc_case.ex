@@ -7,7 +7,8 @@ defmodule RTC.Case do
 
   using do
     quote do
-      alias RDF.{Dataset, Graph, Description, IRI, XSD, PrefixMap, PropertyMap, NS}
+      alias RTC.Compound
+      alias RDF.{Dataset, Graph, Description, IRI, BlankNode, XSD, PrefixMap, PropertyMap, NS}
       alias RDF.NS.{RDFS, OWL}
       alias unquote(__MODULE__).{EX, FOAF}
 
@@ -20,4 +21,55 @@ defmodule RTC.Case do
       @compile {:no_warn_undefined, RTC.Case.FOAF}
     end
   end
+
+  alias RTC.Compound
+
+  @triples [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]
+  def triples(), do: @triples
+
+  @other_triples [{EX.S3, EX.P3, EX.O3}, {EX.S4, EX.P4, EX.O4}]
+  def other_triples(), do: @other_triples
+
+  @flat_compound %Compound{
+    triples:
+      MapSet.new([
+        RDF.triple({EX.S1, EX.P1, EX.O1}),
+        RDF.triple({EX.S2, EX.P2, EX.O2})
+      ]),
+    annotations: RDF.description(EX.Compound)
+  }
+  def flat_compound(), do: @flat_compound
+
+  @empty_compound %Compound{
+    triples: MapSet.new(),
+    annotations: RDF.description(EX.Compound)
+  }
+  def empty_compound(), do: @empty_compound
+
+  @sub_compound Compound.new(@other_triples, EX.SubCompound)
+  def sub_compound(), do: @sub_compound
+
+  @nested_compound %Compound{
+    triples:
+      MapSet.new([
+        RDF.triple({EX.S1, EX.P1, EX.O1}),
+        RDF.triple({EX.S2, EX.P2, EX.O2})
+      ]),
+    sub_compounds: %{Compound.id(@sub_compound) => @sub_compound},
+    annotations: RDF.description(EX.Compound)
+  }
+  def nested_compound(), do: @nested_compound
+
+  @compound_with_duplicate_triple_in_sub_compound %Compound{
+    triples:
+      MapSet.new([
+        RDF.triple({EX.S1, EX.P1, EX.O1}),
+        RDF.triple({EX.S2, EX.P2, EX.O2}),
+        RDF.triple({EX.S3, EX.P3, EX.O3})
+      ]),
+    sub_compounds: %{Compound.id(@sub_compound) => @sub_compound},
+    annotations: RDF.description(EX.Compound)
+  }
+  def compound_with_duplicate_triple_in_sub_compound(),
+    do: @compound_with_duplicate_triple_in_sub_compound
 end
