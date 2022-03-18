@@ -217,14 +217,14 @@ defmodule RTC.CompoundTest do
 
     test "cyclic sub-compounds raise an error" do
       assert_raise RuntimeError, "circle in sub-compound #{RDF.iri(EX.Compound)}", fn ->
-        RDF.graph(name: RDF.iri(EX.Compound))
+        RDF.graph()
         |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
         |> Graph.add({EX.Compound, RTC.subCompoundOf(), EX.Compound})
         |> Compound.from_rdf(EX.Compound)
       end
 
       assert_raise RuntimeError, "circle in sub-compound #{RDF.iri(EX.SubCompound)}", fn ->
-        RDF.graph(name: RDF.iri(EX.Compound))
+        RDF.graph()
         |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
         |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
         |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
@@ -237,13 +237,14 @@ defmodule RTC.CompoundTest do
   describe "to_rdf with :element_of style" do
     test "returns a graph with the triples and the RTC annotations with rtc:elementOf" do
       assert Compound.to_rdf(flat_compound(), element_style: :element_of) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
-               |> Graph.add(triples(), add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
+               Graph.add(graph(), triples(),
+                 add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)}
+               )
     end
 
     test "with sub-compound" do
       assert Compound.to_rdf(nested_compound(), element_style: :element_of) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
                |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
                |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
                |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
@@ -251,14 +252,14 @@ defmodule RTC.CompoundTest do
 
     test "the empty compound" do
       assert Compound.to_rdf(empty_compound(), element_style: :element_of) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
     end
 
     test "a compound with a duplicate triples in a sub-compound" do
       assert Compound.to_rdf(compound_with_duplicate_triple_in_sub_compound(),
                element_style: :element_of
              ) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
                |> Graph.add([{EX.S3, EX.P3, EX.O3} | triples()],
                  add_annotations: {RTC.elementOf(), EX.Compound}
                )
@@ -272,25 +273,36 @@ defmodule RTC.CompoundTest do
                annotations: {EX.foo1(), EX.Bar1}
              )
              |> Compound.to_rdf(element_style: :element_of) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
                |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
                |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
                |> Graph.add(EX.Compound |> EX.foo1(EX.Bar1))
                |> Graph.add(EX.SubCompound |> RTC.subCompoundOf(EX.Compound) |> EX.foo2(EX.Bar2))
+    end
+
+    test "setting RDF.Graph.new/1 opts" do
+      assert Compound.to_rdf(flat_compound(),
+               element_style: :element_of,
+               name: EX.Graph,
+               prefixes: [ex: EX],
+               init: {EX.InitS, EX.InitP, EX.InitO}
+             ) ==
+               RDF.graph(name: EX.Graph, prefixes: [ex: EX], init: {EX.InitS, EX.InitP, EX.InitO})
+               |> Graph.add(triples(), add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
     end
   end
 
   describe "to_rdf with :elements style" do
     test "returns a graph with the triples and the RTC annotations with rtc:elements" do
       assert Compound.to_rdf(flat_compound(), element_style: :elements) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
                |> Graph.add(triples())
                |> Graph.add(EX.Compound |> RTC.elements(triples()))
     end
 
     test "with sub-compound" do
       assert Compound.to_rdf(nested_compound(), element_style: :elements) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
                |> Graph.add(triples())
                |> Graph.add(EX.Compound |> RTC.elements(triples()))
                |> Graph.add(other_triples())
@@ -303,7 +315,7 @@ defmodule RTC.CompoundTest do
 
     test "the empty compound" do
       assert Compound.to_rdf(empty_compound(), element_style: :elements) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
     end
 
     test "a compound with a duplicate triples in a sub-compound" do
@@ -312,7 +324,7 @@ defmodule RTC.CompoundTest do
       assert Compound.to_rdf(compound_with_duplicate_triple_in_sub_compound(),
                element_style: :elements
              ) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
                |> Graph.add(triples)
                |> Graph.add(EX.Compound |> RTC.elements(triples))
                |> Graph.add(other_triples())
@@ -329,7 +341,7 @@ defmodule RTC.CompoundTest do
                annotations: {EX.foo1(), EX.Bar1}
              )
              |> Compound.to_rdf(element_style: :elements) ==
-               RDF.graph(name: RDF.iri(EX.Compound))
+               graph()
                |> Graph.add(triples())
                |> Graph.add(EX.Compound |> RTC.elements(triples()) |> EX.foo1(EX.Bar1))
                |> Graph.add(other_triples())
@@ -339,6 +351,18 @@ defmodule RTC.CompoundTest do
                  |> RTC.subCompoundOf(EX.Compound)
                  |> EX.foo2(EX.Bar2)
                )
+    end
+
+    test "setting RDF.Graph.new/1 opts" do
+      assert Compound.to_rdf(flat_compound(),
+               element_style: :elements,
+               name: EX.Graph,
+               prefixes: [ex: EX],
+               init: {EX.InitS, EX.InitP, EX.InitO}
+             ) ==
+               RDF.graph(name: EX.Graph, prefixes: [ex: EX], init: {EX.InitS, EX.InitP, EX.InitO})
+               |> Graph.add(triples())
+               |> Graph.add(EX.Compound |> RTC.elements(triples()))
     end
   end
 

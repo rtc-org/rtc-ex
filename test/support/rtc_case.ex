@@ -24,6 +24,19 @@ defmodule RTC.Case do
 
   alias RTC.Compound
 
+  def graph(), do: graph(EX.Compound)
+  def graph(name) when is_atom(name), do: name |> RDF.iri() |> graph()
+  def graph(%id_type{} = name) when id_type in [RDF.IRI, RDF.BlankNode], do: graph(name, [])
+  def graph(data), do: graph(EX.Compound, data)
+
+  def graph(name, data) do
+    RDF.graph(
+      name: name,
+      prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC),
+      init: data
+    )
+  end
+
   @triples [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]
   def triples(), do: @triples
 

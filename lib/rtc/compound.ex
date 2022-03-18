@@ -223,10 +223,26 @@ defmodule RTC.Compound do
 
       config :rtc, :element_style, :element_of
 
+  All remaining opts are passed-through to `RDF.Graph.new/1`, which means in particular:
+
+  - you can set the graph name with the `:name` option
+    (by default, the compound id is used as the graph name)
+  - you can set the prefixes with the `:prefixes` options
+    (by default, the `RDF.default_prefixes/0` together with the `rtc` prefix is used)
+
   """
   @spec to_rdf(t, keyword) :: Graph.t()
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
-    graph = elements_to_rdf(compound, Keyword.get(opts, :element_style, @element_style))
+    element_style = Keyword.get(opts, :element_style, @element_style)
+
+    graph_new_opts =
+      opts
+      |> Keyword.put_new(:name, id(compound))
+      |> Keyword.put_new_lazy(:prefixes, fn -> RDF.default_prefixes(rtc: RTC.NS.RTC) end)
+
+    graph =
+      RDF.graph(graph_new_opts)
+      |> elements_to_rdf(compound, element_style)
 
     Enum.reduce(compound.sub_compounds, graph, fn {sub_compound_id, sub_compound}, graph ->
       graph
@@ -235,20 +251,20 @@ defmodule RTC.Compound do
     end)
   end
 
-  defp elements_to_rdf(compound, :element_of) do
+  defp elements_to_rdf(graph, compound, :element_of) do
     compound_id = id(compound)
 
     Enum.reduce(
       compound.triples,
-      RDF.graph(name: compound_id, init: compound.annotations),
+      Graph.add(graph, compound.annotations),
       &Graph.add(&2, &1, add_annotations: {RTC.elementOf(), compound_id})
     )
   end
 
-  defp elements_to_rdf(compound, :elements) do
+  defp elements_to_rdf(graph, compound, :elements) do
     triples = MapSet.to_list(compound.triples)
 
-    RDF.graph(name: id(compound))
+    graph
     |> Graph.add(triples)
     |> Graph.add(compound.annotations |> RTC.elements(triples))
   end
