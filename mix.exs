@@ -23,12 +23,19 @@ defmodule RTC.MixProject do
 
   defp deps do
     [
-      {:rdf, "~> 0.10"},
+      rdf_ex_dep(:rdf, "~> 0.11"),
       {:elixir_uuid, "~> 1.2"},
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
       {:benchee, "~> 1.0", only: :dev}
     ]
+  end
+
+  defp rdf_ex_dep(dep, version, opts \\ nil) do
+    case System.get_env("RDF_EX_PACKAGES_SRC") do
+      "LOCAL" -> {dep, path: "../#{dep}"}
+      _ -> if opts, do: {dep, version, opts}, else: {dep, version}
+    end
   end
 
   defp dialyzer do
