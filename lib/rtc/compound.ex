@@ -60,9 +60,9 @@ defmodule RTC.Compound do
         }
 
   @type triple :: Triple.t()
-  @type coercible_triple :: Triple.coercible_t()
+  @type coercible_triple :: Triple.coercible()
   @type coercible_triples ::
-          [Triple.coercible_t()]
+          [Triple.coercible()]
           | Graph.t()
           | Description.t()
           | Graph.t()
