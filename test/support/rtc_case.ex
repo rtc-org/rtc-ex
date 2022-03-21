@@ -43,6 +43,9 @@ defmodule RTC.Case do
   @other_triples [{EX.S3, EX.P3, EX.O3}, {EX.S4, EX.P4, EX.O4}]
   def other_triples(), do: @other_triples
 
+  @more_triples [{EX.S5, EX.P5, EX.O5}, {EX.S6, EX.P6, EX.O6}]
+  def more_triples(), do: @more_triples
+
   @flat_compound %Compound{
     triples:
       MapSet.new([
@@ -72,6 +75,20 @@ defmodule RTC.Case do
     annotations: RDF.description(EX.Compound)
   }
   def nested_compound(), do: @nested_compound
+
+  @deeply_nested_compound %Compound{
+    triples:
+      MapSet.new([
+        RDF.triple({EX.S1, EX.P1, EX.O1}),
+        RDF.triple({EX.S2, EX.P2, EX.O2})
+      ]),
+    sub_compounds: %{
+      Compound.id(@sub_compound) =>
+        Compound.put_sub_compound(@sub_compound, Compound.new(@more_triples, EX.DeepCompound))
+    },
+    annotations: RDF.description(EX.Compound)
+  }
+  def deeply_nested_compound(), do: @deeply_nested_compound
 
   @compound_with_duplicate_triple_in_sub_compound %Compound{
     triples:

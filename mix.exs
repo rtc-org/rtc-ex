@@ -9,6 +9,8 @@ defmodule RTC.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      aliases: aliases(),
+      preferred_cli_env: ["test.sparql_client": :test],
 
       # Dialyzer
       dialyzer: dialyzer()
@@ -24,6 +26,7 @@ defmodule RTC.MixProject do
   defp deps do
     [
       rdf_ex_dep(:rdf, "~> 0.11"),
+      rdf_ex_dep(:sparql_client, "~> 0.4", optional: true),
       {:elixir_uuid, "~> 1.2"},
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
@@ -47,4 +50,10 @@ defmodule RTC.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp aliases do
+    [
+      "test.sparql_client": "test --only sparql_client"
+    ]
+  end
 end

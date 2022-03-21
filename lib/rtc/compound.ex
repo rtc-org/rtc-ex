@@ -201,6 +201,50 @@ defmodule RTC.Compound do
     )
   end
 
+  if Code.ensure_loaded?(SPARQL.Client) do
+    @doc """
+    Retrieves the compound with the given `compound_id` from a SPARQL endpoint.
+
+    This function is only available when the `sparql_client` dependency is
+    added in your `Mixfile`.
+
+    When no compound with the given `compound_id` can be found in the given
+    `graph`, an empty compound is returned.
+    """
+    @spec from_sparql(String.t(), id()) :: {:ok, t()}
+    defdelegate from_sparql(endpoint, compound_id), to: RTC.SPARQL, as: :from_endpoint
+
+    @doc """
+    Retrieves the compound with the given `compound_id` from a SPARQL endpoint.
+
+    This function is only available when the `sparql_client` dependency is
+    added in your `Mixfile`.
+
+    The `opts` are used as the options for the `CONSTRUCT` query call by the
+    `SPARQL.Client` against the endpoint. See `SPARQL.Client.construct/3` for
+    available options.
+
+    When no compound with the given `compound_id` can be found in the given
+    `graph`, an empty compound is returned.
+    """
+    @spec from_sparql(String.t(), id(), keyword) :: {:ok, t()}
+    defdelegate from_sparql(endpoint, compound_id, opts), to: RTC.SPARQL, as: :from_endpoint
+
+    @doc """
+    Retrieves the compound with the given `compound_id` from a SPARQL endpoint.
+
+    As opposed to `from_sparql/3` this function returns the result directly and
+    raises an error when the SPARQL client call fails.
+    """
+    @spec from_sparql!(String.t(), id(), keyword) :: t()
+    def from_sparql!(endpoint, compound_id, opts \\ []) do
+      case from_sparql(endpoint, compound_id, opts) do
+        {:ok, results} -> results
+        {:error, error} -> raise error
+      end
+    end
+  end
+
   @doc """
   Creates an RDF-star graph of the given compound with all RTC annotations.
 

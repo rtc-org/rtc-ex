@@ -169,8 +169,7 @@ defmodule RTC.CompoundTest do
         |> Graph.add(EX.SubCompound |> RTC.elements(other_triples()))
         |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
 
-      assert Compound.from_rdf(graph, EX.Compound) ==
-               Compound.new(triples(), EX.Compound, sub_compound: sub_compound())
+      assert Compound.from_rdf(graph, EX.Compound) == nested_compound()
     end
 
     test "retrieves a nested compound (via rtc:elementOf)" do
@@ -180,8 +179,34 @@ defmodule RTC.CompoundTest do
         |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
         |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
 
-      assert Compound.from_rdf(graph, EX.Compound) ==
-               Compound.new(triples(), EX.Compound, sub_compound: sub_compound())
+      assert Compound.from_rdf(graph, EX.Compound) == nested_compound()
+    end
+
+    test "retrieves a deeply nested compound (via rtc:elements)" do
+      graph =
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(triples())
+        |> Graph.add(EX.Compound |> RTC.elements(triples()))
+        |> Graph.add(other_triples())
+        |> Graph.add(EX.SubCompound |> RTC.elements(other_triples()))
+        |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
+        |> Graph.add(more_triples())
+        |> Graph.add(EX.DeepCompound |> RTC.elements(more_triples()))
+        |> Graph.add({EX.DeepCompound, RTC.subCompoundOf(), EX.SubCompound})
+
+      assert Compound.from_rdf(graph, EX.Compound) == deeply_nested_compound()
+    end
+
+    test "retrieves a deeply nested compound (via rtc:elementOf)" do
+      graph =
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
+        |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
+        |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
+        |> Graph.add(more_triples(), add_annotations: {RTC.elementOf(), EX.DeepCompound})
+        |> Graph.add({EX.DeepCompound, RTC.subCompoundOf(), EX.SubCompound})
+
+      assert Compound.from_rdf(graph, EX.Compound) == deeply_nested_compound()
     end
 
     test "retrieves annotations" do
