@@ -23,6 +23,7 @@ defmodule RTC.Case do
   end
 
   alias RTC.Compound
+  alias RDF.Graph
 
   def graph(), do: graph(EX.Compound)
   def graph(name) when is_atom(name), do: name |> RDF.iri() |> graph()
@@ -47,17 +48,14 @@ defmodule RTC.Case do
   def more_triples(), do: @more_triples
 
   @flat_compound %Compound{
-    triples:
-      MapSet.new([
-        RDF.triple({EX.S1, EX.P1, EX.O1}),
-        RDF.triple({EX.S2, EX.P2, EX.O2})
-      ]),
+    graph:
+      Graph.new(@triples, name: EX.Compound, prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)),
     annotations: RDF.description(EX.Compound)
   }
   def flat_compound(), do: @flat_compound
 
   @empty_compound %Compound{
-    triples: MapSet.new(),
+    graph: Graph.new(name: EX.Compound, prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)),
     annotations: RDF.description(EX.Compound)
   }
   def empty_compound(), do: @empty_compound
@@ -66,22 +64,16 @@ defmodule RTC.Case do
   def sub_compound(), do: @sub_compound
 
   @nested_compound %Compound{
-    triples:
-      MapSet.new([
-        RDF.triple({EX.S1, EX.P1, EX.O1}),
-        RDF.triple({EX.S2, EX.P2, EX.O2})
-      ]),
+    graph:
+      Graph.new(@triples, name: EX.Compound, prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)),
     sub_compounds: %{Compound.id(@sub_compound) => @sub_compound},
     annotations: RDF.description(EX.Compound)
   }
   def nested_compound(), do: @nested_compound
 
   @deeply_nested_compound %Compound{
-    triples:
-      MapSet.new([
-        RDF.triple({EX.S1, EX.P1, EX.O1}),
-        RDF.triple({EX.S2, EX.P2, EX.O2})
-      ]),
+    graph:
+      Graph.new(@triples, name: EX.Compound, prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)),
     sub_compounds: %{
       Compound.id(@sub_compound) =>
         Compound.put_sub_compound(@sub_compound, Compound.new(@more_triples, EX.DeepCompound))
@@ -91,12 +83,11 @@ defmodule RTC.Case do
   def deeply_nested_compound(), do: @deeply_nested_compound
 
   @compound_with_duplicate_triple_in_sub_compound %Compound{
-    triples:
-      MapSet.new([
-        RDF.triple({EX.S1, EX.P1, EX.O1}),
-        RDF.triple({EX.S2, EX.P2, EX.O2}),
-        RDF.triple({EX.S3, EX.P3, EX.O3})
-      ]),
+    graph:
+      Graph.new([RDF.triple({EX.S3, EX.P3, EX.O3}) | @triples],
+        name: EX.Compound,
+        prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)
+      ),
     sub_compounds: %{Compound.id(@sub_compound) => @sub_compound},
     annotations: RDF.description(EX.Compound)
   }

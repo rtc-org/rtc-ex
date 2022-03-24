@@ -10,12 +10,6 @@ defmodule RTC.Compound do
 
   You can then use the various functions on this module to get its triples,
   sub-compounds and annotations or edit them.
-  Whenever a function accepts triples they can be given as
-
-  - coercible triples, i.e. 3-element tuples of elements which can coerced
-    to RDF terms,
-  - an `RDF.Description` or
-  - an `RDF.Graph`
 
   Finally, you can get back the RDF form of the compound with `to_rdf/2`.
   If you only want a RDF graph of the contained triples (without the annotations),
@@ -42,34 +36,31 @@ defmodule RTC.Compound do
 
   alias RDF.{Statement, Triple, Description, Graph}
 
-  @enforce_keys [:triples, :annotations]
-  defstruct [
-    # we have no explicit id field, since we're using the subject of the description for this
-    triples: MapSet.new(),
-    sub_compounds: %{},
-    annotations: nil
-  ]
+  # we have no explicit id field, since we're using the subject of the description for this
+  @enforce_keys [:graph, :annotations]
+  defstruct graph: nil,
+            annotations: nil,
+            sub_compounds: %{}
 
   @type id :: RDF.Resource.t()
   @type coercible_id :: Statement.coercible_subject()
 
   @type t :: %__MODULE__{
-          triples: MapSet.t(),
-          sub_compounds: %{id => t()},
-          annotations: Description.t()
+          graph: Graph.t(),
+          annotations: Description.t(),
+          sub_compounds: %{id => t()}
         }
 
-  @type triple :: Triple.t()
-  @type coercible_triple :: Triple.coercible()
-  @type coercible_triples ::
-          [Triple.coercible()]
-          | Graph.t()
-          | Description.t()
-          | Graph.t()
-          | Description.t()
-          | [coercible_triples()]
-
   @element_style Application.get_env(:rtc, :element_style, :element_of)
+
+  @doc """
+  Creates a new compound.
+
+  An id for the compound is automatically generated.
+  See the module documentation for information on auto-generated ids.
+  """
+  @spec new :: t
+  def new, do: new([])
 
   @doc """
   Creates a new compound with the given set of triples.
@@ -77,65 +68,68 @@ defmodule RTC.Compound do
   An id for the compound is automatically generated.
   If you want to define the id yourself, use `new/2` or `new/3`.
 
+  Triples can be provided in any form accepted by `RDF.Graph.new/2`.
   When a list of triples is given which contains nested lists of triples,
   sub-compounds with auto-generated ids are generated and added for each
   of the nested lists.
 
-  See the module documentation for information on auto-generated ids and the
-  various ways to specify triples.
+  See the module documentation for information on auto-generated ids.
   """
-  @spec new(coercible_triples()) :: t
+  @spec new(Graph.input()) :: t
   def new(triples), do: new(triples, [])
 
   @doc """
   Creates a new compound with the given set of triples and the given id.
 
+  Triples can be provided in any form accepted by `RDF.Graph.new/2`.
   When a list of triples is given which contains nested lists of triples,
   sub-compounds with auto-generated ids are generated and added for each
   of the nested lists.
 
   If a keyword list is given as the second argument, an id is generated and
   delegated to `new/3`.
-
-  See the module documentation for information on auto-generated ids and the
-  various ways to specify triples.
+  See the module documentation for information on auto-generated ids.
   """
-  @spec new(coercible_triples(), coercible_id() | keyword) :: t
+  @spec new(Graph.input(), coercible_id() | keyword) :: t
   def new(triples, opts) when is_list(opts), do: new(triples, RTC.id(), opts)
   def new(triples, compound_id), do: new(triples, compound_id, [])
 
   @doc """
   Creates a new compound with the given set of triples and the given id.
 
+  Triples can be provided in any form accepted by `RDF.Graph.new/2`.
   When a list of triples is given which contains nested lists of triples,
   sub-compounds with auto-generated ids are generated and added for each
   of the nested lists.
   Alternatively, the `sub_compound` keyword can be used to provide one
   or a list of sub-compounds to be added.
-
-  See the module documentation for information on the various ways to specify triples.
   """
-  @spec new(coercible_triples(), coercible_id(), keyword) :: t
-  def new(triples, compound_id, opts) do
-    {triples, sub_compounds} =
-      Enum.reduce(triples, {MapSet.new(), MapSet.new()}, fn
-        nested_triples, {triples, sub_compounds} when is_list(nested_triples) ->
-          {triples, MapSet.put(sub_compounds, new(nested_triples))}
+  @spec new(Graph.input(), coercible_id(), keyword) :: t
+  def new(triples, compound_id, opts) when is_list(triples) do
+    {graph, sub_compounds} =
+      Enum.reduce(triples, {Graph.new(), []}, fn
+        nested_triples, {graph, sub_compounds} when is_list(nested_triples) ->
+          {graph, [new(nested_triples) | sub_compounds]}
 
-        triple, {triples, sub_compounds} ->
-          {MapSet.put(triples, RDF.triple(triple)), sub_compounds}
+        triple, {graph, sub_compounds} ->
+          {Graph.add(graph, triple), sub_compounds}
       end)
 
+    opts = Keyword.update(opts, :sub_compound, sub_compounds, &(sub_compounds ++ List.wrap(&1)))
+
+    new(graph, compound_id, opts)
+  end
+
+  def new(triples, compound_id, opts) do
     sub_compounds =
       opts
       |> Keyword.get(:sub_compound)
       |> List.wrap()
       |> ensure_all_compounds!()
-      |> MapSet.new()
-      |> MapSet.union(sub_compounds)
 
     %__MODULE__{
-      triples: triples,
+      graph:
+        Graph.new(triples, name: compound_id, prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)),
       sub_compounds: Map.new(sub_compounds, &{id(&1), &1}),
       annotations: new_annotation(compound_id, Keyword.get(opts, :annotations))
     }
@@ -155,6 +149,28 @@ defmodule RTC.Compound do
 
   defp new_annotation(compound_id, description),
     do: RDF.description(compound_id, init: description)
+
+  @doc """
+  Returns the id of the given `compound`.
+  """
+  @spec id(t) :: id()
+  def id(%__MODULE__{} = compound), do: compound.annotations.subject
+
+  defdelegate name(compound), to: __MODULE__, as: :id
+
+  @doc """
+  Sets a new id on the given `compound`.
+  """
+  @spec reset_id(t, id()) :: t()
+  def reset_id(%__MODULE__{} = compound, id) do
+    %{
+      compound
+      | graph: Graph.change_name(compound.graph, id),
+        annotations: Description.change_subject(compound.annotations, id)
+    }
+  end
+
+  defdelegate change_name(compound, name), to: __MODULE__, as: :reset_id
 
   @doc """
   Retrieves the compound with the given `compound_id` from a `RDF.Graph`.
@@ -227,7 +243,7 @@ defmodule RTC.Compound do
     When no compound with the given `compound_id` can be found in the given
     `graph`, an empty compound is returned.
     """
-    @spec from_sparql(String.t(), id(), keyword) :: {:ok, t()}
+    @spec from_sparql(String.t(), id(), keyword) :: {:ok, t()} | {:error, any}
     defdelegate from_sparql(endpoint, compound_id, opts), to: RTC.SPARQL, as: :from_endpoint
 
     @doc """
@@ -267,172 +283,192 @@ defmodule RTC.Compound do
 
       config :rtc, :element_style, :element_of
 
-  All remaining opts are passed-through to `RDF.Graph.new/1`, which means in particular:
+  The following options can used to customize the returned graph:
 
-  - you can set the graph name with the `:name` option
+  - `:name`: the name of the graph to be created
     (by default, the compound id is used as the graph name)
-  - you can set the prefixes with the `:prefixes` options
-    (by default, the `RDF.default_prefixes/0` together with the `rtc` prefix is used)
+  - `:prefixes`: some prefix mappings which should be added the graph
+    and will be used for example when serializing in a format with prefix support
+    (the `RDF.default_prefixes/0` together with the `rtc` prefix are already added)
+  - `:base_iri`: a base IRI which should be stored alongside the graph
+    and will be used for example when serializing in a format with base IRI support
 
   """
   @spec to_rdf(t, keyword) :: Graph.t()
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
-    element_style = Keyword.get(opts, :element_style, @element_style)
+    annotated_graph =
+      compound.graph
+      |> Graph.change_name(Keyword.get(opts, :name, compound.graph.name))
+      |> Graph.set_base_iri(Keyword.get(opts, :base_iri, compound.graph.base_iri))
+      |> Graph.add_prefixes(Keyword.get(opts, :prefixes, []))
+      |> annotate(compound, Keyword.get(opts, :element_style, @element_style))
 
-    graph_new_opts =
-      opts
-      |> Keyword.put_new(:name, id(compound))
-      |> Keyword.put_new_lazy(:prefixes, fn -> RDF.default_prefixes(rtc: RTC.NS.RTC) end)
-
-    graph =
-      RDF.graph(graph_new_opts)
-      |> elements_to_rdf(compound, element_style)
-
-    Enum.reduce(compound.sub_compounds, graph, fn {sub_compound_id, sub_compound}, graph ->
-      graph
-      |> Graph.add({sub_compound_id, RTC.subCompoundOf(), id(compound)})
-      |> Graph.add(to_rdf(sub_compound, opts))
+    Enum.reduce(compound.sub_compounds, annotated_graph, fn
+      {sub_compound_id, sub_compound}, annotated_graph ->
+        annotated_graph
+        |> Graph.add({sub_compound_id, RTC.subCompoundOf(), id(compound)})
+        |> Graph.add(to_rdf(sub_compound, opts))
     end)
   end
 
-  defp elements_to_rdf(graph, compound, :element_of) do
-    compound_id = id(compound)
-
-    Enum.reduce(
-      compound.triples,
-      Graph.add(graph, compound.annotations),
-      &Graph.add(&2, &1, add_annotations: {RTC.elementOf(), compound_id})
-    )
+  defp annotate(graph, compound, :element_of) do
+    graph
+    |> Graph.add(compound.annotations)
+    |> Graph.add_annotations(compound.graph, {RTC.elementOf(), id(compound)})
   end
 
-  defp elements_to_rdf(graph, compound, :elements) do
-    triples = MapSet.to_list(compound.triples)
-
-    graph
-    |> Graph.add(triples)
-    |> Graph.add(compound.annotations |> RTC.elements(triples))
+  defp annotate(graph, compound, :elements) do
+    Graph.add(graph, compound.annotations |> RTC.elements(Graph.triples(compound.graph)))
   end
 
   @doc """
-  Creates an RDF graph of the triples in the compound (incl. its sub-compounds) without the annotations.
+  Returns an RDF graph of the triples in the compound (incl. its sub-compounds) without the annotations.
   """
   @spec graph(t) :: Graph.t()
   def graph(%__MODULE__{} = compound) do
-    RDF.graph(name: id(compound), init: triples(compound))
-  end
-
-  @doc """
-  Returns the id of the given `compound`.
-  """
-  @spec id(t) :: id()
-  def id(%__MODULE__{} = compound), do: compound.annotations.subject
-
-  @doc """
-  Sets a new id on the given `compound`.
-  """
-  @spec reset_id(t, id()) :: t()
-  def reset_id(%__MODULE__{} = compound, id) do
-    %{compound | annotations: Description.change_subject(compound.annotations, id)}
+    Enum.reduce(compound.sub_compounds, compound.graph, fn
+      {_, sub_compound}, graph -> Graph.add(graph, graph(sub_compound))
+    end)
   end
 
   @doc """
   Returns a list of the triples in the given `compound`.
   """
-  @spec triples(t) :: [triple]
+  @spec triples(t) :: [Triple.t()]
   def triples(%__MODULE__{} = compound) do
     compound
-    |> triple_set()
-    |> MapSet.to_list()
+    |> graph()
+    |> Graph.triples()
+  end
+
+  defdelegate statements(compound), to: __MODULE__, as: :triples
+
+  @doc """
+  Returns the number of triples in the given `compound`.
+  """
+  @spec triple_count(t) :: non_neg_integer
+  def triple_count(%__MODULE__{} = compound) do
+    compound
+    |> graph()
+    |> Graph.triple_count()
+  end
+
+  defdelegate statement_count(compound), to: __MODULE__, as: :statement_count
+
+  @doc """
+  Returns a list of the `RDF.Description`s in the given `compound`.
+  """
+  @spec descriptions(t) :: [Description.t()]
+  def descriptions(%__MODULE__{} = compound) do
+    compound
+    |> graph()
+    |> Graph.descriptions()
   end
 
   @doc """
-  Returns the set of triples in the given `compound`.
+  Returns whether the given triples are an element of the given `compound` or any of its sub-compounds.
   """
-  @spec triple_set(t) :: MapSet.t()
-  def triple_set(%__MODULE__{} = compound) do
-    Enum.reduce(compound.sub_compounds, compound.triples, fn {_, sub_compound}, triple_set ->
-      MapSet.union(triple_set, triple_set(sub_compound))
-    end)
-  end
-
-  @doc """
-  Returns whether the given `triple` is an element of the given `compound`.
-  """
-  @spec element?(t, coercible_triple) :: boolean
-  def element?(%__MODULE__{} = compound, triple) do
-    triple = RDF.triple(triple)
-
-    triple in compound.triples or
+  @spec include?(t, Graph.input()) :: boolean
+  def include?(%__MODULE__{} = compound, input) do
+    Graph.include?(compound.graph, input) or
       Enum.any?(compound.sub_compounds, fn {_, sub_compound} ->
-        element?(sub_compound, triple)
+        include?(sub_compound, input)
       end)
   end
 
   @doc """
-  Returns the number of triple in the given `compound`.
+  Returns whether the given `compound` or any of its sub-compounds contains triples about the given subject.
+
+  ## Examples
+
+        iex> RTC.Compound.new([{EX.S1, EX.p1, EX.O1}]) |> RTC.Compound.describes?(EX.S1)
+        true
+        iex> RTC.Compound.new([{EX.S1, EX.p1, EX.O1}]) |> RTC.Compound.describes?(EX.S2)
+        false
+
   """
-  @spec size(t) :: non_neg_integer
-  def size(%__MODULE__{} = compound) do
-    compound
-    |> triple_set()
-    |> MapSet.size()
+  @spec describes?(t, Statement.coercible_subject()) :: boolean
+  def describes?(%__MODULE__{} = compound, subject) do
+    Graph.describes?(compound.graph, subject) or
+      Enum.any?(compound.sub_compounds, fn {_, sub_compound} ->
+        describes?(sub_compound, subject)
+      end)
+  end
+
+  @doc """
+  Returns the description of the given subject.
+
+  When the subject can not be found an empty description is returned.
+
+  ## Examples
+
+      iex> RTC.Compound.new([{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}])
+      ...> |> RTC.Compound.description(EX.S1)
+      RDF.Description.new(EX.S1, init: {EX.P1, EX.O1})
+
+      iex> RTC.Compound.new([{EX.S, EX.P1, EX.O1}], sub_compound: RTC.Compound.new([{EX.S, EX.P2, EX.O2}]))
+      ...> |> RTC.Compound.description(EX.S)
+      RDF.Description.new(EX.S, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
+
+  """
+  @spec description(t, Statement.coercible_subject()) :: Description.t() | nil
+  def description(%__MODULE__{} = compound, subject) do
+    Enum.reduce(
+      compound.sub_compounds,
+      Graph.get(compound.graph, subject, Description.new(subject)),
+      fn {_, sub_compound}, description ->
+        Description.add(description, description(sub_compound, subject))
+      end
+    )
   end
 
   @doc """
   Adds triples to the given `compound`.
 
-  See the module documentation for the different ways to specify triples.
+  Triples can be provided in any form accepted by `RDF.Graph.add/2`.
   """
-  @spec add(t, coercible_triple() | coercible_triples) :: t
-  def add(compound, triples)
-
-  def add(%__MODULE__{} = compound, triples) when is_list(triples) do
-    Enum.reduce(triples, compound, &add(&2, &1))
+  @spec add(t, Graph.input()) :: t
+  def add(compound, triples) do
+    update_graph(compound, &Graph.add(&1, triples))
   end
 
-  def add(%__MODULE__{} = compound, %Description{} = description) do
-    add(compound, Description.triples(description))
-  end
-
-  def add(%__MODULE__{} = compound, %Graph{} = graph) do
-    add(compound, Graph.triples(graph))
-  end
-
-  def add(%__MODULE__{} = compound, triple) do
-    %__MODULE__{compound | triples: MapSet.put(compound.triples, RDF.triple(triple))}
+  defp update_graph(compound, fun) do
+    %__MODULE__{compound | graph: fun.(compound.graph)}
   end
 
   @doc """
   Deletes triples from the given `compound`.
 
-  See the module documentation for the different ways to specify triples.
+  Triples can be provided in any form accepted by `RDF.Graph.delete/2`.
 
-  If a triple occurs in multiple sub-compounds, it gets deleted from all of them.
+  If a triple occurs in one or more sub-compounds, it gets deleted from all of them.
   """
-  @spec delete(t, coercible_triple | coercible_triples) :: t
-  def delete(compound, triples)
-
-  def delete(%__MODULE__{} = compound, triples) when is_list(triples) do
-    Enum.reduce(triples, compound, &delete(&2, &1))
-  end
-
-  def delete(%__MODULE__{} = compound, %Description{} = description) do
-    delete(compound, Description.triples(description))
-  end
-
-  def delete(%__MODULE__{} = compound, %Graph{} = graph) do
-    delete(compound, Graph.triples(graph))
-  end
-
-  def delete(%__MODULE__{} = compound, triple) do
-    triple = RDF.triple(triple)
-
+  @spec delete(t, Graph.input()) :: t
+  def delete(%__MODULE__{} = compound, triples) do
     %__MODULE__{
       compound
-      | triples: MapSet.delete(compound.triples, triple),
+      | graph: Graph.delete(compound.graph, triples),
         sub_compounds:
           Map.new(compound.sub_compounds, fn {id, sub_compound} ->
-            {id, delete(sub_compound, triple)}
+            {id, delete(sub_compound, triples)}
+          end)
+    }
+  end
+
+  @doc """
+  Deletes all triples with the given `subjects` from the given `compound`.
+
+  If a triple occurs in one or more sub-compounds, it gets deleted from all of them.
+  """
+  @spec delete_descriptions(t, Statement.coercible_subject() | [Statement.coercible_subject()]) ::
+          t
+  def delete_descriptions(%__MODULE__{} = compound, subjects) do
+    %__MODULE__{
+      compound
+      | graph: Graph.delete_descriptions(compound.graph, subjects),
+        sub_compounds:
+          Map.new(compound.sub_compounds, fn {id, sub_compound} ->
+            {id, delete_descriptions(sub_compound, subjects)}
           end)
     }
   end
@@ -451,7 +487,7 @@ defmodule RTC.Compound do
   When just triples are passed instead of compound, a compound with an
   auto-generated id is created implicitly.
   """
-  @spec put_sub_compound(t, t | coercible_triples) :: t
+  @spec put_sub_compound(t, t | Graph.input()) :: t
   def put_sub_compound(compound, sub_compounds)
 
   def put_sub_compound(%__MODULE__{} = compound, %__MODULE__{} = sub_compound) do
@@ -522,14 +558,14 @@ defmodule RTC.Compound do
   defimpl Enumerable do
     alias RTC.Compound
 
-    def count(%Compound{} = compound), do: {:ok, Compound.size(compound)}
+    def count(%Compound{} = compound), do: {:ok, Compound.triple_count(compound)}
 
-    def member?(%Compound{} = compound, triple), do: {:ok, Compound.element?(compound, triple)}
+    def member?(%Compound{} = compound, triple), do: {:ok, Compound.include?(compound, triple)}
 
     def slice(%Compound{} = compound),
-      do: compound |> Compound.triple_set() |> Enumerable.slice()
+      do: compound |> Compound.graph() |> Enumerable.slice()
 
     def reduce(%Compound{} = compound, acc, fun),
-      do: compound |> Compound.triple_set() |> Enumerable.reduce(acc, fun)
+      do: compound |> Compound.graph() |> Enumerable.reduce(acc, fun)
   end
 end

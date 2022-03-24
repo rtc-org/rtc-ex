@@ -13,8 +13,8 @@ defmodule RTC.CompoundTest do
 
       assert Compound.new(description, EX.Compound) ==
                %Compound{
-                 triples:
-                   MapSet.new([
+                 graph:
+                   graph([
                      RDF.triple({EX.S, EX.P1, EX.O1}),
                      RDF.triple({EX.S, EX.P2, EX.O2})
                    ]),
@@ -56,11 +56,7 @@ defmodule RTC.CompoundTest do
                annotations: annotations
              ) ==
                %Compound{
-                 triples:
-                   MapSet.new([
-                     RDF.triple({EX.S1, EX.P1, EX.O1}),
-                     RDF.triple({EX.S2, EX.P2, EX.O2})
-                   ]),
+                 graph: graph(triples()),
                  sub_compounds: %{Compound.id(nested_compound) => nested_compound},
                  annotations: RDF.description(EX.Compound, init: annotations)
                }
@@ -80,11 +76,14 @@ defmodule RTC.CompoundTest do
 
       assert compound ==
                %Compound{
-                 triples:
-                   MapSet.new([
-                     RDF.triple({EX.S, EX.P1, EX.O1}),
-                     RDF.triple({EX.S, EX.P2, EX.O2})
-                   ]),
+                 graph:
+                   graph(
+                     id,
+                     [
+                       RDF.triple({EX.S, EX.P1, EX.O1}),
+                       RDF.triple({EX.S, EX.P2, EX.O2})
+                     ]
+                   ),
                  annotations: RDF.description(id)
                }
 
@@ -309,10 +308,10 @@ defmodule RTC.CompoundTest do
       assert Compound.to_rdf(flat_compound(),
                element_style: :element_of,
                name: EX.Graph,
-               prefixes: [ex: EX],
-               init: {EX.InitS, EX.InitP, EX.InitO}
+               prefixes: [ex: EX]
              ) ==
-               RDF.graph(name: EX.Graph, prefixes: [ex: EX], init: {EX.InitS, EX.InitP, EX.InitO})
+               graph(EX.Graph)
+               |> Graph.add_prefixes(ex: EX)
                |> Graph.add(triples(), add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
     end
   end
@@ -382,10 +381,10 @@ defmodule RTC.CompoundTest do
       assert Compound.to_rdf(flat_compound(),
                element_style: :elements,
                name: EX.Graph,
-               prefixes: [ex: EX],
-               init: {EX.InitS, EX.InitP, EX.InitO}
+               prefixes: [ex: EX]
              ) ==
-               RDF.graph(name: EX.Graph, prefixes: [ex: EX], init: {EX.InitS, EX.InitP, EX.InitO})
+               graph(EX.Graph)
+               |> Graph.add_prefixes(ex: EX)
                |> Graph.add(triples())
                |> Graph.add(EX.Compound |> RTC.elements(triples()))
     end
@@ -393,42 +392,21 @@ defmodule RTC.CompoundTest do
 
   describe "graph/1" do
     test "the empty compound" do
-      assert Compound.graph(empty_compound()) == RDF.graph(name: EX.Compound)
+      assert Compound.graph(empty_compound()) == graph()
     end
 
     test "a flat compound" do
-      assert Compound.graph(flat_compound()) == RDF.graph(name: EX.Compound, init: triples())
+      assert Compound.graph(flat_compound()) == graph(triples())
     end
 
     test "a nested compound" do
       assert Compound.graph(nested_compound()) ==
-               RDF.graph(name: EX.Compound, init: triples() ++ other_triples())
+               graph(triples() ++ other_triples())
     end
 
     test "compound with blank node id" do
       bnode = RDF.bnode("compound")
-      assert Compound.new([], bnode) |> Compound.graph() == RDF.graph(name: bnode)
-    end
-  end
-
-  describe "triple_set/1" do
-    test "returns the triple elements as a list" do
-      assert Compound.triple_set(flat_compound()) ==
-               Enum.map(triples(), &RDF.triple/1) |> MapSet.new()
-    end
-
-    test "includes the triples of nested compounds" do
-      assert Compound.triple_set(nested_compound()) ==
-               Enum.map(triples() ++ other_triples(), &RDF.triple/1) |> MapSet.new()
-    end
-
-    test "the empty compound" do
-      assert Compound.triple_set(empty_compound()) == MapSet.new()
-    end
-
-    test "a compound with duplicate triples in a sub-compound" do
-      assert Compound.triple_set(compound_with_duplicate_triple_in_sub_compound()) ==
-               Enum.map(triples() ++ other_triples(), &RDF.triple/1) |> MapSet.new()
+      assert Compound.new([], bnode) |> Compound.graph() == graph(bnode)
     end
   end
 
@@ -452,39 +430,39 @@ defmodule RTC.CompoundTest do
     end
   end
 
-  describe "element?/2" do
+  describe "include?/2" do
     test "returns whether the triple is an element of the compound" do
       Enum.each(triples(), fn triple ->
-        assert Compound.element?(flat_compound(), triple) == true
+        assert Compound.include?(flat_compound(), triple) == true
       end)
 
-      assert Compound.element?(flat_compound(), {EX.S2, EX.P2, EX.O3}) == false
+      assert Compound.include?(flat_compound(), {EX.S2, EX.P2, EX.O3}) == false
     end
 
     test "takes nested compound into account" do
       Enum.each(triples() ++ other_triples(), fn triple ->
-        assert Compound.element?(nested_compound(), triple) == true
+        assert Compound.include?(nested_compound(), triple) == true
       end)
 
-      assert Compound.element?(nested_compound(), {EX.S2, EX.P2, EX.O3}) == false
+      assert Compound.include?(nested_compound(), {EX.S2, EX.P2, EX.O3}) == false
     end
   end
 
-  describe "size/1" do
+  describe "triple_count/1" do
     test "the empty compound" do
-      assert Compound.size(empty_compound()) == 0
+      assert Compound.triple_count(empty_compound()) == 0
     end
 
     test "a flat compound" do
-      assert Compound.size(flat_compound()) == 2
+      assert Compound.triple_count(flat_compound()) == 2
     end
 
     test "a nested compound" do
-      assert Compound.size(nested_compound()) == 4
+      assert Compound.triple_count(nested_compound()) == 4
     end
 
     test "a compound with duplicate triple elements in a sub-compound" do
-      assert Compound.size(compound_with_duplicate_triple_in_sub_compound()) == 4
+      assert Compound.triple_count(compound_with_duplicate_triple_in_sub_compound()) == 4
     end
   end
 
@@ -569,6 +547,33 @@ defmodule RTC.CompoundTest do
                {EX.S4, EX.P4, EX.O4}
              ]) ==
                Compound.put_sub_compound(flat_compound(), Compound.new([], EX.SubCompound))
+    end
+  end
+
+  describe "delete_descriptions/2" do
+    test "a single subject" do
+      assert flat_compound()
+             |> Compound.delete_descriptions(EX.S1)
+             |> Compound.delete_descriptions(EX.S2) == empty_compound()
+    end
+
+    test "a list of triples" do
+      assert Compound.delete_descriptions(flat_compound(), [EX.S1, EX.S2]) ==
+               empty_compound()
+    end
+
+    test "a triple that is not an element" do
+      assert Compound.delete_descriptions(empty_compound(), EX.S2) == empty_compound()
+    end
+
+    test "a triple that is an element of a sub-compound" do
+      assert Compound.new([], EX.Compound, sub_compound: Compound.new(triples(), EX.Sub))
+             |> Compound.delete_descriptions([EX.S1, EX.S2]) ==
+               Compound.new([], EX.Compound, sub_compound: Compound.new([], EX.Sub))
+
+      assert Compound.new(triples(), EX.Compound, sub_compound: Compound.new(triples(), EX.Sub))
+             |> Compound.delete_descriptions([EX.S1, EX.S2]) ==
+               Compound.new([], EX.Compound, sub_compound: Compound.new([], EX.Sub))
     end
   end
 
