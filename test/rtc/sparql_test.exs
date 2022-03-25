@@ -17,6 +17,14 @@ defmodule RTC.SPARQLTest do
   @endpoint "#{@host}/repositories/#{@repository_id}"
   @update_endpoint "#{@host}/repositories/#{@repository_id}/statements"
 
+  setup_all do
+    # We have to start this manually, since we can't define Hackney properly
+    # as a test dependency, because it's a hard dependency of JSON-LD.ex at the
+    # moment.
+    Application.ensure_all_started(:hackney)
+    :ok
+  end
+
   setup do
     create_repository()
     on_exit(&delete_repository/0)
