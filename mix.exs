@@ -44,7 +44,8 @@ defmodule RTC.MixProject do
   defp dialyzer do
     [
       plt_add_apps: [:mix],
-      plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+      ignore_warnings: ".dialyzer_ignore"
     ]
   end
 

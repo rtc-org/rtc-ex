@@ -1,3 +1,7 @@
+# Since functions of optional dependencies can't be found by dialyzer, it can't
+# find the SPARQL.Client functions. We're ignoring these warnings (via .dialyzer_ignore).
+# See https://elixirforum.com/t/confusing-behavior-of-optional-deps-in-mix-exs/17719/4
+
 if Code.ensure_loaded?(SPARQL.Client) do
   defmodule RTC.SPARQL do
     @moduledoc false
