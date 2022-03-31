@@ -78,8 +78,7 @@ defmodule RTC.SPARQLTest do
       |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
       |> insert_segregated()
 
-      assert from_sparql!(EX.Compound) ==
-               Compound.new(triples(), EX.Compound, sub_compound: sub_compound())
+      assert from_sparql!(EX.Compound) == nested_compound()
     end
 
     test "retrieves a nested compound (via rtc:elementOf)" do
@@ -89,8 +88,7 @@ defmodule RTC.SPARQLTest do
       |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
       |> insert_segregated()
 
-      assert from_sparql!(EX.Compound) ==
-               Compound.new(triples(), EX.Compound, sub_compound: sub_compound())
+      assert from_sparql!(EX.Compound) == nested_compound()
     end
 
     test "retrieves annotations (rtc:elements)" do
@@ -123,7 +121,7 @@ defmodule RTC.SPARQLTest do
 
       assert from_sparql!(EX.Compound) ==
                Compound.new(triples(), EX.Compound,
-                 sub_compound: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
+                 sub_compounds: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
                  annotations: {EX.foo1(), EX.Bar1}
                )
     end

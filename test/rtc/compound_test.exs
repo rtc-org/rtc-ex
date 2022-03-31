@@ -31,7 +31,7 @@ defmodule RTC.CompoundTest do
     end
 
     test "constructs a nested compound" do
-      assert Compound.new(triples(), EX.Compound, sub_compound: sub_compound()) ==
+      assert Compound.new(triples(), EX.Compound, sub_compounds: sub_compound()) ==
                nested_compound()
     end
 
@@ -52,7 +52,7 @@ defmodule RTC.CompoundTest do
       annotations = %{EX.ap1() => EX.AO1, EX.ap2() => EX.AO2}
 
       assert Compound.new(triples(), EX.Compound,
-               sub_compound: nested_compound,
+               sub_compounds: nested_compound,
                annotations: annotations
              ) ==
                %Compound{
@@ -93,7 +93,7 @@ defmodule RTC.CompoundTest do
     end
 
     test "constructs a nested compound" do
-      assert %Compound{} = compound = Compound.new(triples(), sub_compound: sub_compound())
+      assert %Compound{} = compound = Compound.new(triples(), sub_compounds: sub_compound())
       assert %BlankNode{} = id = Compound.id(compound)
       assert Compound.reset_id(nested_compound(), id) == compound
     end
@@ -112,6 +112,33 @@ defmodule RTC.CompoundTest do
       assert [%Compound{} = sub_compound] = Compound.sub_compounds(compound)
       assert %BlankNode{} = id = Compound.id(sub_compound)
       assert sub_compound == Compound.new(nested_triples, id)
+    end
+
+    test "super_compounds opt" do
+      assert Compound.new(triples(), EX.Compound, super_compounds: EX.SuperCompound) ==
+               Compound.put_super_compound(flat_compound(), Description.new(EX.SuperCompound))
+
+      assert Compound.new(triples(), EX.Compound,
+               super_compounds: [EX.SuperCompound1, EX.SuperCompound2]
+             ) ==
+               Compound.put_super_compound(flat_compound(), [
+                 Description.new(EX.SuperCompound1),
+                 Description.new(EX.SuperCompound2)
+               ])
+
+      assert Compound.new(triples(), EX.Compound,
+               super_compounds:
+                 RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+             ) ==
+               compound_with_super_compound()
+
+      assert Compound.new(triples(), EX.Compound,
+               super_compounds:
+                 Compound.new([], EX.SuperCompound,
+                   annotations: {EX.inherited_p(), EX.inherited_o()}
+                 )
+             ) ==
+               compound_with_super_compound()
     end
   end
 
@@ -234,8 +261,117 @@ defmodule RTC.CompoundTest do
 
       assert Compound.from_rdf(graph, EX.Compound) ==
                Compound.new(triples(), EX.Compound,
-                 sub_compound: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
+                 sub_compounds: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
                  annotations: {EX.foo1(), EX.Bar1}
+               )
+    end
+
+    test "annotations from super-compounds" do
+      graph =
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
+        |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
+        |> Graph.add(EX.Compound |> EX.foo1(EX.Bar1))
+        |> Graph.add(EX.SubCompound |> RTC.subCompoundOf(EX.Compound) |> EX.foo2(EX.Bar2))
+
+      assert Compound.from_rdf(graph, EX.SubCompound) ==
+               Compound.new(other_triples(), EX.SubCompound,
+                 annotations: {EX.foo2(), EX.Bar2},
+                 super_compounds: Description.new(EX.Compound, init: {EX.foo1(), EX.Bar1})
+               )
+
+      graph =
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(EX.Compound |> RTC.elements(triples()) |> EX.foo1(EX.Bar1))
+        |> Graph.add(
+          EX.SubCompound
+          |> RTC.subCompoundOf(EX.Compound)
+          |> RTC.elements(other_triples())
+          |> EX.foo2(EX.Bar2)
+        )
+
+      assert Compound.from_rdf(graph, EX.SubCompound) ==
+               Compound.new(other_triples(), EX.SubCompound,
+                 annotations: {EX.foo2(), EX.Bar2},
+                 super_compounds: Description.new(EX.Compound, init: {EX.foo1(), EX.Bar1})
+               )
+    end
+
+    test "annotations from different super-compounds" do
+      graph =
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(EX.Compound |> RTC.elements(triples()) |> EX.foo1(EX.Bar1))
+        |> Graph.add(
+          EX.OtherSuperCompound
+          |> RTC.elements({EX.S, EX.P, EX.O})
+          |> RTC.subCompoundOf([EX.SuperSuperCompound])
+          |> EX.foo2(EX.Bar2)
+        )
+        |> Graph.add(
+          EX.SuperSuperCompound
+          |> RTC.elements({EX.S, EX.P, EX.O})
+          |> EX.foo22(EX.Bar22)
+        )
+        |> Graph.add(
+          EX.SubCompound
+          |> RTC.subCompoundOf([EX.Compound, EX.OtherSuperCompound])
+          |> RTC.elements(other_triples())
+          |> EX.foo3(EX.Bar3)
+        )
+
+      assert Compound.from_rdf(graph, EX.SubCompound) ==
+               Compound.new(other_triples(), EX.SubCompound,
+                 annotations: {EX.foo3(), EX.Bar3},
+                 super_compounds: [
+                   Description.new(EX.Compound, init: {EX.foo1(), EX.Bar1}),
+                   Description.new(EX.OtherSuperCompound,
+                     init: [{EX.foo2(), EX.Bar2}, {EX.foo22(), EX.Bar22}]
+                   )
+                 ]
+               )
+    end
+
+    test "annotations in sub-compounds" do
+      graph =
+        RDF.graph(name: RDF.iri(EX.Compound))
+        |> Graph.add(
+          EX.Compound
+          |> RTC.elements(triples())
+          |> EX.foo1(EX.Bar1)
+        )
+        |> Graph.add(
+          EX.SubCompound
+          |> RTC.subCompoundOf([EX.Compound])
+          |> RTC.elements({EX.S, EX.P, EX.O})
+          |> EX.foo21(EX.Bar21)
+        )
+        |> Graph.add(
+          EX.OtherSuperCompound
+          |> RTC.elements({EX.S, EX.P, EX.O})
+          |> EX.foo22(EX.Bar22)
+        )
+        |> Graph.add(
+          EX.SubSubCompound
+          |> RTC.subCompoundOf([EX.SubCompound, EX.OtherSuperCompound])
+          |> RTC.elements(other_triples())
+          |> EX.foo3(EX.Bar3)
+        )
+
+      assert Compound.from_rdf(graph, EX.Compound) ==
+               Compound.new(triples(), EX.Compound,
+                 annotations: {EX.foo1(), EX.Bar1},
+                 sub_compounds:
+                   Compound.new({EX.S, EX.P, EX.O}, EX.SubCompound,
+                     annotations: {EX.foo21(), EX.Bar21},
+                     sub_compounds:
+                       Compound.new(other_triples(), EX.SubSubCompound,
+                         annotations: {EX.foo3(), EX.Bar3},
+                         super_compounds:
+                           Compound.new({EX.S, EX.P, EX.O}, EX.OtherSuperCompound,
+                             annotations: {EX.foo22(), EX.Bar22}
+                           )
+                       )
+                   )
                )
     end
 
@@ -274,6 +410,30 @@ defmodule RTC.CompoundTest do
                |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
     end
 
+    test "with super-compounds" do
+      assert Compound.new(triples(), EX.Compound,
+               annotations: {EX.ap1(), EX.AO1},
+               super_compounds:
+                 Compound.new([], EX.SuperCompound, annotations: {EX.ap0(), EX.AO0}),
+               sub_compounds:
+                 Compound.new(other_triples(), EX.SubCompound,
+                   annotations: {EX.ap2(), EX.AO2},
+                   super_compounds:
+                     Compound.new([], EX.OtherSuperCompound, annotations: {EX.ap3(), EX.AO3})
+                 )
+             )
+             |> Compound.to_rdf(element_style: :element_of) ==
+               graph()
+               |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
+               |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
+               |> Graph.add(EX.Compound |> RTC.subCompoundOf(EX.SuperCompound) |> EX.ap1(EX.AO1))
+               |> Graph.add(
+                 EX.SubCompound
+                 |> RTC.subCompoundOf([EX.Compound, EX.OtherSuperCompound])
+                 |> EX.ap2(EX.AO2)
+               )
+    end
+
     test "the empty compound" do
       assert Compound.to_rdf(empty_compound(), element_style: :element_of) ==
                graph()
@@ -293,7 +453,7 @@ defmodule RTC.CompoundTest do
 
     test "annotations are included" do
       assert Compound.new(triples(), EX.Compound,
-               sub_compound: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
+               sub_compounds: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
                annotations: {EX.foo1(), EX.Bar1}
              )
              |> Compound.to_rdf(element_style: :element_of) ==
@@ -361,7 +521,7 @@ defmodule RTC.CompoundTest do
 
     test "annotations are included" do
       assert Compound.new(triples(), EX.Compound,
-               sub_compound: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
+               sub_compounds: Compound.add_annotations(sub_compound(), {EX.foo2(), EX.Bar2}),
                annotations: {EX.foo1(), EX.Bar1}
              )
              |> Compound.to_rdf(element_style: :elements) ==
@@ -567,13 +727,13 @@ defmodule RTC.CompoundTest do
     end
 
     test "a triple that is an element of a sub-compound" do
-      assert Compound.new([], EX.Compound, sub_compound: Compound.new(triples(), EX.Sub))
+      assert Compound.new([], EX.Compound, sub_compounds: Compound.new(triples(), EX.Sub))
              |> Compound.delete_descriptions([EX.S1, EX.S2]) ==
-               Compound.new([], EX.Compound, sub_compound: Compound.new([], EX.Sub))
+               Compound.new([], EX.Compound, sub_compounds: Compound.new([], EX.Sub))
 
-      assert Compound.new(triples(), EX.Compound, sub_compound: Compound.new(triples(), EX.Sub))
+      assert Compound.new(triples(), EX.Compound, sub_compounds: Compound.new(triples(), EX.Sub))
              |> Compound.delete_descriptions([EX.S1, EX.S2]) ==
-               Compound.new([], EX.Compound, sub_compound: Compound.new([], EX.Sub))
+               Compound.new([], EX.Compound, sub_compounds: Compound.new([], EX.Sub))
     end
   end
 
@@ -605,6 +765,64 @@ defmodule RTC.CompoundTest do
 
     test "with a compound id" do
       assert Compound.delete_sub_compound(nested_compound(), EX.SubCompound) == flat_compound()
+    end
+
+    test "when the given compound is not a sub-compound" do
+      assert Compound.delete_sub_compound(flat_compound(), sub_compound()) == flat_compound()
+    end
+  end
+
+  describe "put_super_compound/2" do
+    test "with a compound id" do
+      assert Compound.put_super_compound(flat_compound(), EX.SuperCompound)
+             |> Compound.super_compounds() == [RDF.iri(EX.SuperCompound)]
+    end
+
+    test "with a compound" do
+      assert Compound.put_super_compound(
+               flat_compound(),
+               Compound.new([], EX.SuperCompound,
+                 annotations: {EX.inherited_p(), EX.inherited_o()}
+               )
+             ) == compound_with_super_compound()
+    end
+
+    test "with a description" do
+      assert Compound.put_super_compound(
+               flat_compound(),
+               RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+             ) == compound_with_super_compound()
+    end
+
+    test "an already included super-compound is overwritten" do
+      assert Compound.new(triples(), EX.Compound,
+               super_compounds:
+                 RDF.description(EX.SuperCompound, init: {EX.original_p(), EX.original_o()})
+             )
+             |> Compound.put_super_compound(
+               RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+             ) ==
+               compound_with_super_compound()
+    end
+  end
+
+  describe "delete_super_compound/2" do
+    test "with a compound id" do
+      assert Compound.delete_super_compound(compound_with_super_compound(), EX.SuperCompound) ==
+               flat_compound()
+    end
+
+    test "with a compound" do
+      assert Compound.delete_super_compound(
+               compound_with_super_compound(),
+               Compound.new([], EX.SuperCompound)
+             ) ==
+               flat_compound()
+    end
+
+    test "when the given compound is not a super-compound" do
+      assert Compound.delete_super_compound(flat_compound(), EX.SuperCompound) ==
+               flat_compound()
     end
   end
 

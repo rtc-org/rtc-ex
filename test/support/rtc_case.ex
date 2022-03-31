@@ -93,4 +93,13 @@ defmodule RTC.Case do
   }
   def compound_with_duplicate_triple_in_sub_compound(),
     do: @compound_with_duplicate_triple_in_sub_compound
+
+  @compound_with_super_compound %Compound{
+    @flat_compound
+    | super_compounds: %{
+        RDF.iri(EX.SuperCompound) =>
+          RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+      }
+  }
+  def compound_with_super_compound(), do: @compound_with_super_compound
 end

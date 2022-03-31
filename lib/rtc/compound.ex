@@ -9,7 +9,7 @@ defmodule RTC.Compound do
   the `from_rdf/2` function.
 
   You can then use the various functions on this module to get its triples,
-  sub-compounds and annotations or edit them.
+  sub-compounds, super-compounds and annotations or edit them.
 
   Finally, you can get back the RDF form of the compound with `to_rdf/2`.
   If you only want a RDF graph of the contained triples (without the annotations),
@@ -36,19 +36,23 @@ defmodule RTC.Compound do
 
   alias RDF.{Statement, Triple, Description, Graph}
 
-  # we have no explicit id field, since we're using the subject of the description for this
+  import RDF.Guards
+
+  # we have no explicit id field, since we're using the subject of the annotations for this
   @enforce_keys [:graph, :annotations]
   defstruct graph: nil,
-            annotations: nil,
-            sub_compounds: %{}
+            sub_compounds: %{},
+            super_compounds: %{},
+            annotations: nil
 
   @type id :: RDF.Resource.t()
   @type coercible_id :: Statement.coercible_subject()
 
   @type t :: %__MODULE__{
           graph: Graph.t(),
-          annotations: Description.t(),
-          sub_compounds: %{id => t()}
+          sub_compounds: %{id => t()},
+          super_compounds: %{id => Description.t()},
+          annotations: Description.t()
         }
 
   @element_style Application.get_env(:rtc, :element_style, :element_of)
@@ -115,7 +119,7 @@ defmodule RTC.Compound do
           {Graph.add(graph, triple), sub_compounds}
       end)
 
-    opts = Keyword.update(opts, :sub_compound, sub_compounds, &(sub_compounds ++ List.wrap(&1)))
+    opts = Keyword.update(opts, :sub_compounds, sub_compounds, &(sub_compounds ++ List.wrap(&1)))
 
     new(graph, compound_id, opts)
   end
@@ -123,7 +127,7 @@ defmodule RTC.Compound do
   def new(triples, compound_id, opts) do
     sub_compounds =
       opts
-      |> Keyword.get(:sub_compound)
+      |> Keyword.get(:sub_compounds)
       |> List.wrap()
       |> ensure_all_compounds!()
 
@@ -133,6 +137,7 @@ defmodule RTC.Compound do
       sub_compounds: Map.new(sub_compounds, &{id(&1), &1}),
       annotations: new_annotation(compound_id, Keyword.get(opts, :annotations))
     }
+    |> put_super_compound(Keyword.get(opts, :super_compounds, []))
   end
 
   defp ensure_all_compounds!(compounds, acc \\ [])
@@ -179,42 +184,89 @@ defmodule RTC.Compound do
   `graph`, an empty compound is returned.
   """
   @spec from_rdf(Graph.t(), coercible_id()) :: t
-  def from_rdf(%Graph{} = graph, compound_id), do: do_from_rdf(graph, compound_id, [])
+  def from_rdf(graph, compound_id) when maybe_ns_term(compound_id),
+    do: from_rdf(graph, RDF.iri(compound_id))
 
-  defp do_from_rdf(graph, compound_id, parent_compound_ids) do
-    if compound_id in parent_compound_ids do
+  def from_rdf(%Graph{} = graph, compound_id) do
+    do_from_rdf(graph, compound_id, [])
+  end
+
+  defp do_from_rdf(graph, compound_id, super_compound_ids) do
+    if compound_id in super_compound_ids do
       raise("circle in sub-compound #{compound_id}")
     end
 
     {elements, annotations} =
-      if description = graph[compound_id] do
-        parent_compound_ids
-        |> Enum.reduce(description, fn parent_compound_id, description ->
-          Description.delete(description, {RTC.subCompoundOf(), parent_compound_id})
-        end)
-        |> Description.pop(RTC.elements())
-      else
-        {[], []}
-      end
+      graph
+      |> Graph.get(compound_id, Description.new(compound_id))
+      |> Description.pop(RTC.elements())
 
     element_ofs =
       graph
       |> Graph.query({:triple?, RTC.elementOf(), compound_id})
       |> Enum.map(&Map.get(&1, :triple))
 
+    {super_compounds, annotations} = Description.pop(annotations, RTC.subCompoundOf())
+
+    super_compounds =
+      super_compounds_from_graph(graph, List.wrap(super_compounds) -- super_compound_ids)
+
     sub_compounds =
       graph
       |> Graph.query({:sub_compound?, RTC.subCompoundOf(), compound_id})
       |> Enum.map(
-        &do_from_rdf(graph, Map.get(&1, :sub_compound), [compound_id | parent_compound_ids])
+        &do_from_rdf(graph, Map.get(&1, :sub_compound), [compound_id | super_compound_ids])
       )
 
     new(
       List.wrap(elements) ++ element_ofs,
       compound_id,
-      sub_compound: sub_compounds,
+      sub_compounds: sub_compounds,
+      super_compounds: super_compounds,
       annotations: annotations
     )
+  end
+
+  defp super_compounds_from_graph(graph, super_compound_ids) when is_list(super_compound_ids) do
+    Enum.map(super_compound_ids, &super_compounds_from_graph(graph, &1))
+  end
+
+  defp super_compounds_from_graph(graph, super_compound_id) do
+    do_super_compounds_from_graph(
+      graph,
+      super_compound_id,
+      Description.new(super_compound_id),
+      []
+    )
+  end
+
+  defp do_super_compounds_from_graph(graph, super_compound_id, super_compound, super_compound_ids) do
+    if super_compound_id in super_compound_ids do
+      raise("circle in sub-compound #{super_compound_id}")
+    end
+
+    super_compound_ids = [super_compound_id | super_compound_ids]
+
+    {new_super_compound_ids, annotations} =
+      if description = graph[super_compound_id] do
+        description
+        |> Description.delete_predicates(RTC.elements())
+        |> Description.pop(RTC.subCompoundOf())
+      else
+        {[], []}
+      end
+
+    annotations = Description.add(super_compound, annotations)
+
+    if new_super_compound_ids do
+      Enum.reduce(
+        new_super_compound_ids,
+        annotations,
+        &do_super_compounds_from_graph(graph, &1, &2, super_compound_ids)
+      )
+    else
+      annotations
+    end
   end
 
   if Code.ensure_loaded?(SPARQL.Client) do
@@ -302,6 +354,7 @@ defmodule RTC.Compound do
       |> Graph.set_base_iri(Keyword.get(opts, :base_iri, compound.graph.base_iri))
       |> Graph.add_prefixes(Keyword.get(opts, :prefixes, []))
       |> annotate(compound, Keyword.get(opts, :element_style, @element_style))
+      |> Graph.add({id(compound), RTC.subCompoundOf(), super_compounds(compound)})
 
     Enum.reduce(compound.sub_compounds, annotated_graph, fn
       {sub_compound_id, sub_compound}, annotated_graph ->
@@ -406,7 +459,7 @@ defmodule RTC.Compound do
       ...> |> RTC.Compound.description(EX.S1)
       RDF.Description.new(EX.S1, init: {EX.P1, EX.O1})
 
-      iex> RTC.Compound.new([{EX.S, EX.P1, EX.O1}], sub_compound: RTC.Compound.new([{EX.S, EX.P2, EX.O2}]))
+      iex> RTC.Compound.new([{EX.S, EX.P1, EX.O1}], sub_compounds: RTC.Compound.new([{EX.S, EX.P2, EX.O2}]))
       ...> |> RTC.Compound.description(EX.S)
       RDF.Description.new(EX.S, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
 
@@ -500,7 +553,7 @@ defmodule RTC.Compound do
   def put_sub_compound(compound, triples), do: put_sub_compound(compound, new(triples))
 
   @doc """
-  Deletes a sub-compound to the given `compound`.
+  Deletes a sub-compound from the given `compound`.
 
   The `sub_compound` to be deleted can be specified by id or given directly.
   Note however, that the elements of the sub-compound to be deleted are not
@@ -519,6 +572,80 @@ defmodule RTC.Compound do
       compound
       | sub_compounds:
           Map.delete(compound.sub_compounds, Statement.coerce_subject(sub_compound_id))
+    }
+  end
+
+  @doc """
+  Returns a list of the ids of the super-compounds of the given `compound`.
+
+  ## Example
+
+      iex> RTC.Compound.new({EX.S, EX.p, EX.O}, EX.Compound, super_compounds: EX.SuperCompound)
+      ...> |> RTC.Compound.super_compounds()
+      [RDF.iri(EX.SuperCompound)]
+
+  """
+  @spec super_compounds(t) :: [id]
+  def super_compounds(%__MODULE__{} = compound), do: Map.keys(compound.super_compounds)
+
+  @doc """
+  Adds a super-compound to the given `compound`.
+
+  The super-compound can be given as a compound identifier, a `RDF.Description` or a
+  `RTC.Compound`. In case of a compound  only its id and annotations are relevant, which
+  will be returned when inherited annotations are requested. A `RDF.Description` is
+  interpreted as the annotations of the super-compound.
+
+  > #### Warning {: .warning}
+  >
+  > The annotations are just used for the purpose of showing inherited annotations.
+  > They won't be rendered in `to_rdf/2`. So, you can't use this function to change the
+  > annotations of super-compounds.
+  > You'll have to load a super-compound with `from_rdf/2` and change the annotations on
+  > this compound.
+
+  If a super-compound with the same id already exists, it gets overwritten.
+
+  """
+  @spec put_super_compound(t, id | t | Description.t() | [id | t | Description.t()]) :: t
+  def put_super_compound(compound, sub_compounds)
+
+  def put_super_compound(%__MODULE__{} = compound, %Description{} = description) do
+    %__MODULE__{
+      compound
+      | super_compounds: Map.put(compound.super_compounds, description.subject, description)
+    }
+  end
+
+  def put_super_compound(compound, super_compounds) when is_list(super_compounds),
+    do: Enum.reduce(super_compounds, compound, &put_super_compound(&2, &1))
+
+  def put_super_compound(compound, %__MODULE__{annotations: annotations}),
+    do: put_super_compound(compound, annotations)
+
+  def put_super_compound(compound, super_compound_id),
+    do: put_super_compound(compound, Description.new(super_compound_id))
+
+  @doc """
+  Deletes a super-compound from the given `compound`.
+
+  The `super_compound` to be deleted can be specified by id or given directly.
+  Note however, that the elements of the super-compound to be deleted are not
+  taken into consideration, just its id is used to address the super-compound
+  to be deleted.
+  """
+  @spec delete_super_compound(t, t | id) :: t
+  def delete_super_compound(compound, super_compound)
+
+  def delete_super_compound(%__MODULE__{} = compound, %__MODULE__{} = super_compound) do
+    delete_super_compound(compound, id(super_compound))
+  end
+
+  def delete_super_compound(%__MODULE__{} = compound, super_compound_id) do
+    %__MODULE__{
+      compound
+      | super_compounds:
+          Map.delete(compound.super_compounds, Statement.coerce_subject(super_compound_id))
     }
   end
 
