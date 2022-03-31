@@ -27,13 +27,13 @@ if Code.ensure_loaded?(SPARQL.Client) do
       """
       #{@prefixes}
       CONSTRUCT {
-        <#{compound_id}>
-            ?compound_p ?compound_o ;
+        <#{compound_id}> ?compound_p ?compound_o ;
             rtc:elements ?triple .
-        ?sub_compound
-          rtc:subCompoundOf ?super_compound ;
-          rtc:elements ?sub_triple ;
-          ?sub_compound_p ?sub_compound_o .
+
+        ?sub_compound ?sub_compound_p ?sub_compound_o ;
+          rtc:elements ?sub_triple .
+
+        ?super_compound ?super_compound_p ?super_compound_o .
       }
       WHERE {
         { ?triple rtc:elementOf <#{compound_id}> . }
@@ -41,11 +41,18 @@ if Code.ensure_loaded?(SPARQL.Client) do
         { <#{compound_id}> ?compound_p ?compound_o . }
         UNION
         {
-          ?sub_compound
-            rtc:subCompoundOf+ <#{compound_id}> ;
-            rtc:subCompoundOf ?super_compound ;
+          ?sub_compound rtc:subCompoundOf+ <#{compound_id}> ;
             ?sub_compound_p ?sub_compound_o .
           OPTIONAL { ?sub_triple rtc:elementOf ?sub_compound . }
+          OPTIONAL {
+            ?sub_compound rtc:subCompoundOf+ ?super_compound .
+            OPTIONAL { ?super_compound ?super_compound_p ?super_compound_o . }
+          }
+        }
+        UNION
+        {
+          <#{compound_id}> rtc:subCompoundOf+ ?super_compound .
+          OPTIONAL { ?super_compound ?super_compound_p ?super_compound_o . }
         }
       }
       """
