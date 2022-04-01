@@ -184,7 +184,7 @@ defmodule RTC.Compound do
   `graph`, an empty compound is returned.
   """
   @spec from_rdf(Graph.t(), coercible_id()) :: t
-  def from_rdf(graph, compound_id) when maybe_ns_term(compound_id),
+  def from_rdf(graph, compound_id) when maybe_ns_term(compound_id) or is_binary(compound_id),
     do: from_rdf(graph, RDF.iri(compound_id))
 
   def from_rdf(%Graph{} = graph, compound_id) do
@@ -650,13 +650,48 @@ defmodule RTC.Compound do
   end
 
   @doc """
-  Returns the description of the given `compound`.
+  Returns the annotations of the given `compound`.
+
+  By default only the direct annotations of the given is returned.
+  With the keyword option `:inherited` set to the value `true`,
+  the annotations of all super-compounds can be included.
   """
   @spec annotations(t) :: Description.t()
-  def annotations(%__MODULE__{} = compound), do: compound.annotations
+  def annotations(%__MODULE__{} = compound, opts \\ []) do
+    if Keyword.get(opts, :inherited, false) do
+      Enum.reduce(compound.super_compounds, compound.annotations, fn
+        {_, inherited}, annotations -> Description.add(annotations, inherited)
+      end)
+    else
+      compound.annotations
+    end
+  end
 
   @doc """
-  Adds statements to the description of the given `compound`.
+  Returns the merged annotations of all super-compound the given `compound`.
+  """
+  @spec inherited_annotations(t) :: Description.t()
+  def inherited_annotations(%__MODULE__{} = compound) do
+    Enum.reduce(compound.super_compounds, RDF.description(id(compound)), fn
+      {_, inherited}, annotations -> Description.add(annotations, inherited)
+    end)
+  end
+
+  @doc """
+  Returns the annotations of the given super-compound of `compound`.
+  """
+  @spec inherited_annotations(t, coercible_id) :: Description.t()
+  def inherited_annotations(compound, super_compound_id)
+
+  def inherited_annotations(compound, super_compound_id)
+      when maybe_ns_term(super_compound_id) or is_binary(super_compound_id),
+      do: inherited_annotations(compound, RDF.iri(super_compound_id))
+
+  def inherited_annotations(%__MODULE__{} = compound, super_compound_id),
+    do: compound.super_compounds[super_compound_id]
+
+  @doc """
+  Adds statements to the annotations of the given `compound`.
   """
   @spec add_annotations(t, Description.input()) :: t
   def add_annotations(%__MODULE__{} = compound, annotations) do
@@ -664,7 +699,7 @@ defmodule RTC.Compound do
   end
 
   @doc """
-  Adds statements to the description of the given `compound`,
+  Adds statements to the annotations of the given `compound`,
   overwriting any previous statements with the given properties.
   """
   @spec put_annotations(t, Description.input()) :: t
@@ -673,9 +708,9 @@ defmodule RTC.Compound do
   end
 
   @doc """
-  Deletes statements from the description of the given `compound`.
+  Deletes statements from the annotations of the given `compound`.
 
-  Statements not part of the description are simply ignored.
+  Statements not part of the annotations are simply ignored.
   """
   @spec delete_annotations(t, Description.input()) :: t
   def delete_annotations(%__MODULE__{} = compound, annotations) do

@@ -826,6 +826,53 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  describe "annotations/1" do
+    test "without enabling inherited annotations" do
+      annotations = RDF.description(EX.Compound, init: {EX.P, EX.O})
+
+      assert Compound.new([], EX.Compound, annotations: annotations) |> Compound.annotations() ==
+               annotations
+    end
+
+    test "with inherited: true" do
+      annotations = RDF.description(EX.Compound, init: {EX.P, EX.O})
+      inherited = RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+
+      assert Compound.new([], EX.Compound, annotations: annotations, super_compounds: inherited)
+             |> Compound.annotations(inherited: true) ==
+               RDF.description(EX.Compound, init: [annotations, inherited])
+    end
+  end
+
+  test "inherited_annotations/1" do
+    assert Compound.inherited_annotations(compound_with_super_compound()) ==
+             RDF.description(Compound.id(compound_with_super_compound()),
+               init: {EX.inherited_p(), EX.inherited_o()}
+             )
+
+    assert compound_with_super_compound()
+           |> Compound.put_super_compound(
+             RDF.description(EX.Other,
+               init: [
+                 {EX.inherited_p(), EX.inherited_o2()},
+                 {EX.other_p(), EX.other_o()}
+               ]
+             )
+           )
+           |> Compound.inherited_annotations() ==
+             RDF.description(Compound.id(compound_with_super_compound()),
+               init: [
+                 {EX.inherited_p(), [EX.inherited_o(), EX.inherited_o2()]},
+                 {EX.other_p(), EX.other_o()}
+               ]
+             )
+  end
+
+  test "inherited_annotations/2" do
+    assert Compound.inherited_annotations(compound_with_super_compound(), EX.SuperCompound) ==
+             RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+  end
+
   test "add_annotations/2" do
     assert flat_compound()
            |> Compound.add_annotations({EX.Foo, EX.Bar})
