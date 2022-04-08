@@ -532,6 +532,23 @@ defmodule RTC.Compound do
   end
 
   @doc """
+  Returns the sub-compound of the given `compound` with the given `sub_compound_id`.
+
+  It will search the whole sub-compound tree for the requested `sub_compound_id`
+
+  If no compound with the `sub_compound_id` can be found, `nil` is returned.
+  """
+  @spec sub_compound(t, coercible_id) :: t | nil
+  def sub_compound(%__MODULE__{} = compound, sub_compound_id) do
+    sub_compound_id = Statement.coerce_subject(sub_compound_id)
+
+    Enum.find_value(compound.sub_compounds, fn
+      {^sub_compound_id, sub_compound} -> put_super_compound(sub_compound, compound)
+      {_, sub_compound} -> sub_compound(sub_compound, sub_compound_id)
+    end)
+  end
+
+  @doc """
   Adds a sub-compound to the given `compound`.
 
   If a sub-compound with the same id already exists, it gets overwritten.

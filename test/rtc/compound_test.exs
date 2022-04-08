@@ -749,6 +749,22 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  describe "sub_compound/2" do
+    test "when the given sub-compound does not exist" do
+      assert Compound.sub_compound(flat_compound(), EX.Unknown) == nil
+    end
+
+    test "when the given sub-compound exists directly as a sub-compound in the given compound" do
+      assert Compound.sub_compound(nested_compound(), EX.SubCompound) ==
+               Compound.put_super_compound(sub_compound(), nested_compound())
+    end
+
+    test "when the given sub-compound exists deeply as a sub-compound in the given compound" do
+      assert Compound.sub_compound(deeply_nested_compound(), EX.DeepCompound) ==
+               Compound.new(more_triples(), EX.DeepCompound, super_compounds: sub_compound())
+    end
+  end
+
   describe "put_sub_compound/2" do
     test "with a compound" do
       assert Compound.put_sub_compound(flat_compound(), sub_compound()) == nested_compound()
