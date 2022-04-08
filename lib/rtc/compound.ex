@@ -36,8 +36,6 @@ defmodule RTC.Compound do
 
   alias RDF.{Statement, Triple, Description, Graph}
 
-  import RDF.Guards
-
   # we have no explicit id field, since we're using the subject of the annotations for this
   @enforce_keys [:graph, :annotations]
   defstruct graph: nil,
@@ -166,7 +164,7 @@ defmodule RTC.Compound do
   @doc """
   Sets a new id on the given `compound`.
   """
-  @spec reset_id(t, id()) :: t()
+  @spec reset_id(t, coercible_id()) :: t()
   def reset_id(%__MODULE__{} = compound, id) do
     %{
       compound
@@ -184,11 +182,8 @@ defmodule RTC.Compound do
   `graph`, an empty compound is returned.
   """
   @spec from_rdf(Graph.t(), coercible_id()) :: t
-  def from_rdf(graph, compound_id) when maybe_ns_term(compound_id) or is_binary(compound_id),
-    do: from_rdf(graph, RDF.iri(compound_id))
-
   def from_rdf(%Graph{} = graph, compound_id) do
-    do_from_rdf(graph, compound_id, [])
+    do_from_rdf(graph, Statement.coerce_subject(compound_id), [])
   end
 
   defp do_from_rdf(graph, compound_id, super_compound_ids) do
@@ -279,7 +274,7 @@ defmodule RTC.Compound do
     When no compound with the given `compound_id` can be found in the given
     `graph`, an empty compound is returned.
     """
-    @spec from_sparql(String.t(), id()) :: {:ok, t()}
+    @spec from_sparql(String.t(), coercible_id()) :: {:ok, t()}
     defdelegate from_sparql(endpoint, compound_id), to: RTC.SPARQL, as: :from_endpoint
 
     @doc """
@@ -295,7 +290,7 @@ defmodule RTC.Compound do
     When no compound with the given `compound_id` can be found in the given
     `graph`, an empty compound is returned.
     """
-    @spec from_sparql(String.t(), id(), keyword) :: {:ok, t()} | {:error, any}
+    @spec from_sparql(String.t(), coercible_id(), keyword) :: {:ok, t()} | {:error, any}
     defdelegate from_sparql(endpoint, compound_id, opts), to: RTC.SPARQL, as: :from_endpoint
 
     @doc """
@@ -304,7 +299,7 @@ defmodule RTC.Compound do
     As opposed to `from_sparql/3` this function returns the result directly and
     raises an error when the SPARQL client call fails.
     """
-    @spec from_sparql!(String.t(), id(), keyword) :: t()
+    @spec from_sparql!(String.t(), coercible_id(), keyword) :: t()
     def from_sparql!(endpoint, compound_id, opts \\ []) do
       case from_sparql(endpoint, compound_id, opts) do
         {:ok, results} -> results
@@ -569,7 +564,7 @@ defmodule RTC.Compound do
   taken into consideration, just its id is used to address the sub-compound
   to be deleted.
   """
-  @spec delete_sub_compound(t, t | id) :: t
+  @spec delete_sub_compound(t, t | coercible_id) :: t
   def delete_sub_compound(compound, sub_compound)
 
   def delete_sub_compound(%__MODULE__{} = compound, %__MODULE__{} = sub_compound) do
@@ -616,7 +611,10 @@ defmodule RTC.Compound do
   If a super-compound with the same id already exists, it gets overwritten.
 
   """
-  @spec put_super_compound(t, id | t | Description.t() | [id | t | Description.t()]) :: t
+  @spec put_super_compound(
+          t,
+          coercible_id | t | Description.t() | [coercible_id | t | Description.t()]
+        ) :: t
   def put_super_compound(compound, sub_compounds)
 
   def put_super_compound(%__MODULE__{} = compound, %Description{} = description) do
@@ -643,7 +641,7 @@ defmodule RTC.Compound do
   taken into consideration, just its id is used to address the super-compound
   to be deleted.
   """
-  @spec delete_super_compound(t, t | id) :: t
+  @spec delete_super_compound(t, t | coercible_id) :: t
   def delete_super_compound(compound, super_compound)
 
   def delete_super_compound(%__MODULE__{} = compound, %__MODULE__{} = super_compound) do
@@ -692,12 +690,8 @@ defmodule RTC.Compound do
   @spec inherited_annotations(t, coercible_id) :: Description.t()
   def inherited_annotations(compound, super_compound_id)
 
-  def inherited_annotations(compound, super_compound_id)
-      when maybe_ns_term(super_compound_id) or is_binary(super_compound_id),
-      do: inherited_annotations(compound, RDF.iri(super_compound_id))
-
   def inherited_annotations(%__MODULE__{} = compound, super_compound_id),
-    do: compound.super_compounds[super_compound_id]
+    do: compound.super_compounds[Statement.coerce_subject(super_compound_id)]
 
   @doc """
   Adds statements to the annotations of the given `compound`.

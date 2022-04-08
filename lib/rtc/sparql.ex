@@ -22,7 +22,7 @@ if Code.ensure_loaded?(SPARQL.Client) do
     end
 
     defp graph_query(compound_id) do
-      compound_id = RDF.iri(compound_id)
+      compound_id = RDF.Statement.coerce_subject(compound_id)
 
       """
       #{@prefixes}
