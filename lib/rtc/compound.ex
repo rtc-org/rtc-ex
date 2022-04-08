@@ -530,7 +530,11 @@ defmodule RTC.Compound do
   Returns a list of the sub-compounds of the given `compound`.
   """
   @spec sub_compounds(t) :: [t]
-  def sub_compounds(%__MODULE__{} = compound), do: Map.values(compound.sub_compounds)
+  def sub_compounds(%__MODULE__{} = compound) do
+    Enum.map(compound.sub_compounds, fn {_, sub_compound} ->
+      put_super_compound(sub_compound, compound)
+    end)
+  end
 
   @doc """
   Adds a sub-compound to the given `compound`.
@@ -546,7 +550,12 @@ defmodule RTC.Compound do
   def put_sub_compound(%__MODULE__{} = compound, %__MODULE__{} = sub_compound) do
     %__MODULE__{
       compound
-      | sub_compounds: Map.put(compound.sub_compounds, id(sub_compound), sub_compound)
+      | sub_compounds:
+          Map.put(
+            compound.sub_compounds,
+            id(sub_compound),
+            delete_super_compound(sub_compound, compound)
+          )
     }
   end
 

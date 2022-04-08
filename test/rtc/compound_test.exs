@@ -103,13 +103,13 @@ defmodule RTC.CompoundTest do
       triples = [{EX.S1, EX.P1, EX.O1}, nested_triples, {EX.S3, EX.P3, EX.O3}]
 
       assert %Compound{} = compound = Compound.new(triples, EX.Compound)
-      assert [%Compound{} = sub_compound] = Compound.sub_compounds(compound)
+      assert [%Compound{} = sub_compound] = Map.values(compound.sub_compounds)
       assert %BlankNode{} = id = Compound.id(sub_compound)
       assert sub_compound == Compound.new(nested_triples, id)
 
       assert %Compound{} = compound = Compound.new(triples)
       assert %BlankNode{} = Compound.id(compound)
-      assert [%Compound{} = sub_compound] = Compound.sub_compounds(compound)
+      assert [%Compound{} = sub_compound] = Map.values(compound.sub_compounds)
       assert %BlankNode{} = id = Compound.id(sub_compound)
       assert sub_compound == Compound.new(nested_triples, id)
     end
@@ -737,6 +737,18 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  describe "sub_compounds/1" do
+    test "without any sub-compounds present" do
+      assert Compound.sub_compounds(empty_compound()) == []
+      assert Compound.sub_compounds(flat_compound()) == []
+    end
+
+    test "returns the sub-compounds with super-compound supplemented" do
+      assert Compound.sub_compounds(nested_compound()) ==
+               [Compound.put_super_compound(sub_compound(), nested_compound())]
+    end
+  end
+
   describe "put_sub_compound/2" do
     test "with a compound" do
       assert Compound.put_sub_compound(flat_compound(), sub_compound()) == nested_compound()
@@ -744,9 +756,17 @@ defmodule RTC.CompoundTest do
 
     test "with triples, a compound is created implicitly" do
       assert %Compound{} = compound = Compound.put_sub_compound(flat_compound(), other_triples())
-      assert [%Compound{} = sub_compound] = Compound.sub_compounds(compound)
+      assert [%Compound{} = sub_compound] = Map.values(compound.sub_compounds)
       assert %BlankNode{} = id = Compound.id(sub_compound)
       assert sub_compound == Compound.new(other_triples(), id)
+    end
+
+    test "removes the now implicit super-compound" do
+      assert Compound.put_sub_compound(
+               nested_compound(),
+               Compound.put_super_compound(sub_compound(), nested_compound())
+             ) ==
+               nested_compound()
     end
 
     test "an already included compound is overwritten" do
