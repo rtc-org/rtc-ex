@@ -25,7 +25,7 @@ defmodule RTC.MixProject do
 
   defp deps do
     [
-      rdf_ex_dep(:rdf, "~> 0.11"),
+      rdf_ex_dep(:rdf, "~> 0.12"),
       rdf_ex_dep(:sparql_client, "~> 0.4", optional: true),
       {:elixir_uuid, "~> 1.2"},
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
