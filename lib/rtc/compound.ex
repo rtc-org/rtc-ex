@@ -392,6 +392,17 @@ defmodule RTC.Compound do
   defdelegate statements(compound), to: __MODULE__, as: :triples
 
   @doc """
+  Returns if the given `compound` (and of its sub-compounds) does not contain any triples.
+  """
+  @spec empty?(t) :: boolean
+  def empty?(%__MODULE__{} = compound) do
+    Graph.empty?(compound.graph) and
+      Enum.all?(compound.sub_compounds, fn {_, sub_compound} ->
+        empty?(sub_compound)
+      end)
+  end
+
+  @doc """
   Returns the number of triples in the given `compound`.
   """
   @spec triple_count(t) :: non_neg_integer

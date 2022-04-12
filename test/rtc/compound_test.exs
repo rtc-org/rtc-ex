@@ -590,6 +590,22 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  describe "empty?/1" do
+    test "with empty compound" do
+      assert Compound.empty?(empty_compound()) == true
+    end
+
+    test "with a non-empty compound" do
+      assert Compound.empty?(flat_compound()) == false
+      assert Compound.empty?(nested_compound()) == false
+    end
+
+    test "with an empty compound, that has non-empty sub-compounds" do
+      assert Compound.empty?(Compound.new([], EX.Compound, sub_compounds: sub_compound())) ==
+               false
+    end
+  end
+
   describe "include?/2" do
     test "returns whether the triple is an element of the compound" do
       Enum.each(triples(), fn triple ->
