@@ -26,6 +26,7 @@ defmodule RTC.Case do
   alias RDF.Graph
 
   def graph(), do: graph(EX.Compound)
+  def graph(nil), do: graph(nil, [])
   def graph(name) when is_atom(name), do: name |> RDF.iri() |> graph()
   def graph(%id_type{} = name) when id_type in [RDF.IRI, RDF.BlankNode], do: graph(name, [])
   def graph(data), do: graph(EX.Compound, data)

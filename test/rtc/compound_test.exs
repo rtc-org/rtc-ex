@@ -45,6 +45,16 @@ defmodule RTC.CompoundTest do
                }
     end
 
+    test "with annotations given as a description about another resource" do
+      annotations = Description.new(EX.Other, init: %{EX.ap1() => EX.AO1, EX.ap2() => EX.AO2})
+
+      assert Compound.new(triples(), EX.Compound, annotations: annotations) ==
+               %Compound{
+                 flat_compound()
+                 | annotations: RDF.description(EX.Compound, init: annotations)
+               }
+    end
+
     test "annotations are not added to sub-compounds" do
       nested_compound =
         Compound.new([{EX.S3, EX.P3, EX.O3}, {EX.S4, EX.P4, EX.O4}], EX.SubCompound)
@@ -59,6 +69,58 @@ defmodule RTC.CompoundTest do
                  graph: graph(triples()),
                  sub_compounds: %{Compound.id(nested_compound) => nested_compound},
                  annotations: RDF.description(EX.Compound, init: annotations)
+               }
+    end
+
+    test "super_compounds opt" do
+      assert Compound.new(triples(), EX.Compound,
+               super_compounds:
+                 RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+             ) ==
+               compound_with_super_compound()
+
+      assert Compound.new(triples(), EX.Compound, super_compounds: EX.SuperCompound) ==
+               Compound.new(triples(), EX.Compound,
+                 super_compounds: RDF.description(EX.SuperCompound)
+               )
+
+      assert Compound.new(triples(), EX.Compound,
+               super_compounds: [EX.SuperCompound1, EX.SuperCompound2]
+             ) ==
+               Compound.put_super_compound(flat_compound(), [
+                 Description.new(EX.SuperCompound1),
+                 Description.new(EX.SuperCompound2)
+               ])
+
+      assert Compound.new(triples(), EX.Compound,
+               super_compounds:
+                 Compound.new([], EX.SuperCompound,
+                   annotations: {EX.inherited_p(), EX.inherited_o()}
+                 )
+             ) ==
+               compound_with_super_compound()
+    end
+
+    test "with blank node id" do
+      assert Compound.new(triples(), ~B"Compound") ==
+               %Compound{
+                 graph: Graph.new(triples(), prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)),
+                 annotations: RDF.description(~B"Compound")
+               }
+    end
+
+    test "graph opts" do
+      opts = [
+        name: EX.Graph,
+        base_iri: "http://base_iri/",
+        prefixes: [ex: EX],
+        init: {EX.Ignored, EX.p(), "init"}
+      ]
+
+      assert Compound.new(triples(), EX.Compound, opts) ==
+               %Compound{
+                 graph: Graph.new(triples(), opts),
+                 annotations: RDF.description(EX.Compound)
                }
     end
   end
@@ -78,7 +140,7 @@ defmodule RTC.CompoundTest do
                %Compound{
                  graph:
                    graph(
-                     id,
+                     nil,
                      [
                        RDF.triple({EX.S, EX.P1, EX.O1}),
                        RDF.triple({EX.S, EX.P2, EX.O2})
@@ -114,38 +176,31 @@ defmodule RTC.CompoundTest do
       assert sub_compound == Compound.new(nested_triples, id)
     end
 
-    test "super_compounds opt" do
-      assert Compound.new(triples(), EX.Compound, super_compounds: EX.SuperCompound) ==
-               Compound.put_super_compound(flat_compound(), Description.new(EX.SuperCompound))
+    test "graph opts" do
+      opts = [
+        name: EX.Graph,
+        base_iri: "http://base_iri/",
+        prefixes: [ex: EX],
+        init: {EX.Ignored, EX.p(), "init"}
+      ]
 
-      assert Compound.new(triples(), EX.Compound,
-               super_compounds: [EX.SuperCompound1, EX.SuperCompound2]
-             ) ==
-               Compound.put_super_compound(flat_compound(), [
-                 Description.new(EX.SuperCompound1),
-                 Description.new(EX.SuperCompound2)
-               ])
+      assert %Compound{} = compound = Compound.new(triples(), opts)
 
-      assert Compound.new(triples(), EX.Compound,
-               super_compounds:
-                 RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
-             ) ==
-               compound_with_super_compound()
-
-      assert Compound.new(triples(), EX.Compound,
-               super_compounds:
-                 Compound.new([], EX.SuperCompound,
-                   annotations: {EX.inherited_p(), EX.inherited_o()}
-                 )
-             ) ==
-               compound_with_super_compound()
+      assert compound == %Compound{
+               graph: Graph.new(triples(), opts),
+               annotations: RDF.description(Compound.id(compound))
+             }
     end
   end
 
   test "reset_id/2" do
-    assert flat_compound()
-           |> Compound.reset_id(EX.new_id())
-           |> Compound.id() == EX.new_id()
+    assert %Compound{} = compound = Compound.reset_id(flat_compound(), EX.new_id())
+    assert Compound.id(compound) == EX.new_id()
+    assert compound.graph.name == EX.new_id()
+
+    assert %Compound{} = compound = Compound.reset_id(flat_compound(), ~B"new_id")
+    assert Compound.id(compound) == ~B"new_id"
+    assert compound.graph.name == nil
   end
 
   describe "from_rdf/2" do
@@ -394,6 +449,44 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  describe "to_rdf" do
+    test "uses the graph defaults provided with new/3" do
+      opts = [
+        name: EX.Graph,
+        base_iri: "http://base_iri/",
+        prefixes: [ex: EX]
+      ]
+
+      compound = Compound.new(triples(), EX.Compound, opts)
+
+      assert Compound.to_rdf(compound) ==
+               RDF.graph(opts)
+               |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
+    end
+
+    test "overwrites the graph defaults provided with new/3" do
+      opts = [
+        name: EX.Overwritten,
+        base_iri: "http://base_iri/overwritten",
+        prefixes: [owl: RDF.NS.OWL]
+      ]
+
+      compound = Compound.new(triples(), EX.Compound, opts)
+
+      assert Compound.to_rdf(compound,
+               name: EX.Graph,
+               base_iri: "http://base_iri/",
+               prefixes: [ex: EX]
+             ) ==
+               RDF.graph(
+                 name: EX.Graph,
+                 base_iri: "http://base_iri/",
+                 prefixes: [ex: EX, owl: RDF.NS.OWL]
+               )
+               |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
+    end
+  end
+
   describe "to_rdf with :element_of style" do
     test "returns a graph with the triples and the RTC annotations with rtc:elementOf" do
       assert Compound.to_rdf(flat_compound(), element_style: :element_of) ==
@@ -566,7 +659,42 @@ defmodule RTC.CompoundTest do
 
     test "compound with blank node id" do
       bnode = RDF.bnode("compound")
-      assert Compound.new([], bnode) |> Compound.graph() == graph(bnode)
+      assert Compound.new([], bnode) |> Compound.graph() == graph(nil)
+    end
+
+    test "uses the graph defaults provided with new/3" do
+      opts = [
+        name: EX.Graph,
+        base_iri: "http://base_iri/",
+        prefixes: [ex: EX]
+      ]
+
+      compound = Compound.new(triples(), EX.Compound, opts)
+
+      assert Compound.graph(compound) ==
+               RDF.graph(triples(), opts)
+    end
+
+    test "overwrites the graph defaults provided with new/3" do
+      opts = [
+        name: EX.Overwritten,
+        base_iri: "http://base_iri/overwritten",
+        prefixes: [owl: RDF.NS.OWL]
+      ]
+
+      compound = Compound.new(triples(), EX.Compound, opts)
+
+      assert Compound.graph(compound,
+               name: EX.Graph,
+               base_iri: "http://base_iri/",
+               prefixes: [ex: EX]
+             ) ==
+               RDF.graph(
+                 triples(),
+                 name: EX.Graph,
+                 base_iri: "http://base_iri/",
+                 prefixes: [ex: EX, owl: RDF.NS.OWL]
+               )
     end
   end
 
@@ -926,6 +1054,14 @@ defmodule RTC.CompoundTest do
   end
 
   test "add_annotations/2" do
+    assert flat_compound()
+           |> Compound.add_annotations({EX.Foo, EX.Bar})
+           |> Compound.add_annotations({EX.Foo, EX.Baz}) ==
+             %Compound{
+               flat_compound()
+               | annotations: RDF.description(EX.Compound, init: {EX.Foo, [EX.Bar, EX.Baz]})
+             }
+
     assert flat_compound()
            |> Compound.add_annotations({EX.Foo, EX.Bar})
            |> Compound.add_annotations({EX.Foo, EX.Baz}) ==
