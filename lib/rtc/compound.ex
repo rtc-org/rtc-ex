@@ -53,8 +53,6 @@ defmodule RTC.Compound do
           annotations: Description.t()
         }
 
-  @element_style Application.get_env(:rtc, :element_style, :element_of)
-
   @doc """
   Creates a new compound.
 
@@ -358,11 +356,8 @@ defmodule RTC.Compound do
     assertion are not pervaded by annotations and the compound resource can be
     serialized in an isolated and self-contained manner.
 
-  When no `:element_style` is specified, the `:element_of` style is used by default.
-  You can however configure a different default style in your application with
-  the following configuration on your `config.exs` files:
-
-      config :rtc, :element_style, :element_of
+  When no `:element_style` is specified, the configurable result of the
+  `default_element_style/0` function is used as the default.
 
   The following options can used to customize the returned graph:
 
@@ -382,7 +377,7 @@ defmodule RTC.Compound do
     annotated_graph =
       compound.graph
       |> apply_graph_opts(compound, opts)
-      |> annotate(compound, Keyword.get(opts, :element_style, @element_style))
+      |> annotate(compound, Keyword.get(opts, :element_style, default_element_style()))
       |> Graph.add({id(compound), RTC.subCompoundOf(), super_compounds(compound)})
 
     Enum.reduce(compound.sub_compounds, annotated_graph, fn
@@ -409,6 +404,18 @@ defmodule RTC.Compound do
   defp annotate(graph, compound, :elements) do
     Graph.add(graph, compound.annotations |> RTC.elements(Graph.triples(compound.graph)))
   end
+
+  @doc """
+  Returns the default value of the `:element_style` option of `to_rdf/2`.
+
+  This value can be configured in your application with the following configuration
+  on your `config.exs` files:
+
+      config :rtc, :element_style, :element_of
+
+    When no `:element_style` is specified, the `:element_of` style is used by default.
+  """
+  def default_element_style, do: Application.get_env(:rtc, :element_style, :element_of)
 
   @doc """
   Returns an RDF graph of the triples in the compound (incl. its sub-compounds) without the annotations.
