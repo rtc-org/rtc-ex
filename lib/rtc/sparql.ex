@@ -12,7 +12,12 @@ if Code.ensure_loaded?(SPARQL.Client) do
     PREFIX rtc: <#{RTC.NS.RTC.__base_iri__()}>
     """
 
-    def from_endpoint(endpoint, compound_id, opts \\ []) do
+    def from_endpoint(endpoint, compound_id, opts \\ nil)
+
+    def from_endpoint(endpoint, compound_id, nil),
+      do: from_endpoint(endpoint, compound_id, default_opts())
+
+    def from_endpoint(endpoint, compound_id, opts) do
       with {:ok, results} <-
              compound_id
              |> graph_query()
@@ -57,6 +62,8 @@ if Code.ensure_loaded?(SPARQL.Client) do
       }
       """
     end
+
+    defp default_opts, do: Application.get_env(:rtc, :from_sparql_opts, [])
 
     defp from_results(%RDF.Graph{} = graph, compound_id) do
       {:ok, Compound.from_rdf(graph, compound_id)}

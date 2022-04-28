@@ -305,6 +305,17 @@ defmodule RTC.Compound do
 
     When no compound with the given `compound_id` can be found in the given
     `graph`, an empty compound is returned.
+
+    This function requests the execution of a SPARQL `CONSTRUCT` query without any
+    further options on the respective `SPARQL.Client` call. You can configure the
+    options to be used on this request with the `:from_sparql_opts` configuration
+    on your `config.exs` files, e.g.
+
+        config :rtc, :from_sparql_opts,
+            accept_header: "application/x-turtlestar",
+            result_format: :turtle
+
+    See `SPARQL.Client` for available options.
     """
     @spec from_sparql(String.t(), coercible_id()) :: {:ok, t()}
     defdelegate from_sparql(endpoint, compound_id), to: RTC.SPARQL, as: :from_endpoint
@@ -316,7 +327,7 @@ defmodule RTC.Compound do
     added in your `Mixfile`.
 
     The `opts` are used as the options for the `CONSTRUCT` query call by the
-    `SPARQL.Client` against the endpoint. See `SPARQL.Client.construct/3` for
+    `SPARQL.Client` against the endpoint. See `SPARQL.Client` for
     available options.
 
     When no compound with the given `compound_id` can be found in the given
