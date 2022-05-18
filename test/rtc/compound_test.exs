@@ -854,6 +854,17 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  test "pop/1" do
+    [triple1, triple2, triple3, triple4] = Compound.triples(nested_compound())
+    assert {^triple1, compound} = Compound.pop(nested_compound())
+    assert {^triple2, compound} = Compound.pop(compound)
+    assert {^triple3, compound} = Compound.pop(compound)
+    assert {^triple4, compound} = Compound.pop(compound)
+    assert Compound.empty?(compound)
+    assert {nil, compound} = Compound.pop(compound)
+    assert Compound.empty?(compound)
+  end
+
   describe "delete_descriptions/2" do
     test "a single subject" do
       assert flat_compound()
@@ -1117,6 +1128,179 @@ defmodule RTC.CompoundTest do
       assert Enum.at(nested_compound(), 2) == {RDF.iri(EX.S3), RDF.iri(EX.P3), RDF.iri(EX.O3)}
       assert Enum.at(nested_compound(), 3) == {RDF.iri(EX.S4), RDF.iri(EX.P4), RDF.iri(EX.O4)}
       assert Enum.at(nested_compound(), 4) == nil
+    end
+  end
+
+  describe "RDF.Data protocol" do
+    test "merge/2" do
+      assert RDF.Data.merge(flat_compound(), {EX.S1, EX.P1, EX.O3}) ==
+               flat_compound() |> Compound.graph(name: nil) |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(flat_compound(), {EX.S1, EX.P1, EX.O3, EX.NamedGraph}) ==
+               flat_compound()
+               |> Compound.graph(name: EX.NamedGraph)
+               |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(flat_compound(), Description.new(EX.S1, init: {EX.P1, EX.O3})) ==
+               flat_compound() |> Compound.graph(name: nil) |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(flat_compound(), Graph.new({EX.S1, EX.P1, EX.O3})) ==
+               flat_compound() |> Compound.graph(name: nil) |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(
+               flat_compound(),
+               Graph.new({EX.S1, EX.P1, EX.O3}, name: EX.NamedGraph)
+             ) ==
+               flat_compound()
+               |> Compound.graph(name: EX.NamedGraph)
+               |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(
+               flat_compound(),
+               Dataset.new({EX.S1, EX.P1, EX.O3})
+             ) ==
+               flat_compound()
+               |> Compound.graph()
+               |> Dataset.new()
+               |> Dataset.add({EX.S1, EX.P1, EX.O3})
+    end
+
+    test "merge/2 with compound as secondary argument" do
+      assert RDF.Data.merge(Description.new(EX.S1, init: {EX.P1, EX.O3}), flat_compound()) ==
+               flat_compound() |> Compound.graph(name: nil) |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(Graph.new({EX.S1, EX.P1, EX.O3}), flat_compound()) ==
+               flat_compound() |> Compound.graph(name: nil) |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(
+               Graph.new({EX.S1, EX.P1, EX.O3}, name: EX.NamedGraph),
+               flat_compound()
+             ) ==
+               flat_compound()
+               |> Compound.graph(name: EX.NamedGraph)
+               |> Graph.add({EX.S1, EX.P1, EX.O3})
+
+      assert RDF.Data.merge(
+               Dataset.new({EX.S1, EX.P1, EX.O3}),
+               flat_compound()
+             ) ==
+               flat_compound()
+               |> Compound.graph()
+               |> Dataset.new()
+               |> Dataset.add({EX.S1, EX.P1, EX.O3})
+    end
+
+    test "delete/2" do
+      assert RDF.Data.delete(flat_compound(), {EX.S1, EX.P1, EX.O1}) ==
+               Compound.delete(flat_compound(), {EX.S1, EX.P1, EX.O1})
+
+      assert RDF.Data.delete(flat_compound(), {EX.Other, EX.p1(), EX.O2}) == flat_compound()
+    end
+
+    test "pop" do
+      assert RDF.Data.pop(flat_compound()) == RTC.Compound.pop(flat_compound())
+    end
+
+    test "empty?/1" do
+      assert RDF.Data.empty?(flat_compound()) == false
+      assert RDF.Data.empty?(empty_compound()) == true
+    end
+
+    test "include?/2" do
+      assert RDF.Data.include?(flat_compound(), {EX.S1, EX.P1, EX.O1})
+      assert RDF.Data.include?(flat_compound(), {EX.S2, EX.P2, EX.O2})
+      refute RDF.Data.include?(flat_compound(), {EX.Other, EX.p1(), EX.O2})
+    end
+
+    test "describes?/2" do
+      assert RDF.Data.describes?(flat_compound(), EX.S1)
+      assert RDF.Data.describes?(flat_compound(), EX.S2)
+      refute RDF.Data.describes?(flat_compound(), EX.Other)
+    end
+
+    test "description/2 " do
+      assert RDF.Data.description(flat_compound(), EX.S1) ==
+               RDF.description(EX.S1, init: {EX.P1, EX.O1})
+
+      assert RDF.Data.description(flat_compound(), EX.Other) ==
+               Description.new(EX.Other)
+    end
+
+    test "descriptions/1" do
+      assert RDF.Data.descriptions(flat_compound()) ==
+               triples() |> RDF.graph() |> Graph.descriptions()
+    end
+
+    test "statements/1" do
+      assert RDF.Data.statements(flat_compound()) == Enum.map(triples(), &Triple.new/1)
+    end
+
+    test "subjects/1" do
+      assert RDF.Data.subjects(flat_compound()) == MapSet.new([RDF.iri(EX.S1), RDF.iri(EX.S2)])
+
+      assert RDF.Data.subjects(nested_compound()) ==
+               MapSet.new([RDF.iri(EX.S1), RDF.iri(EX.S2), RDF.iri(EX.S3), RDF.iri(EX.S4)])
+    end
+
+    test "predicates/1" do
+      assert RDF.Data.predicates(flat_compound()) == MapSet.new([RDF.iri(EX.P1), RDF.iri(EX.P2)])
+    end
+
+    test "objects/1" do
+      assert RDF.Data.objects(flat_compound()) ==
+               MapSet.new([RDF.iri(EX.O1), RDF.iri(EX.O2)])
+    end
+
+    test "resources/1" do
+      assert RDF.Data.resources(flat_compound()) ==
+               MapSet.new([
+                 RDF.iri(EX.S1),
+                 RDF.iri(EX.S2),
+                 RDF.iri(EX.P1),
+                 RDF.iri(EX.P2),
+                 RDF.iri(EX.O1),
+                 RDF.iri(EX.O2)
+               ])
+    end
+
+    test "subject_count/1" do
+      assert RDF.Data.subject_count(flat_compound()) == 2
+      assert RDF.Data.subject_count(nested_compound()) == 4
+    end
+
+    test "statement_count/1" do
+      assert RDF.Data.statement_count(flat_compound()) == 2
+    end
+
+    test "values/1" do
+      assert RDF.Data.values(flat_compound()) ==
+               flat_compound() |> Compound.graph() |> RDF.Data.values()
+    end
+
+    test "equal/2" do
+      assert RDF.Data.equal?(flat_compound(), flat_compound())
+
+      assert RDF.Data.equal?(
+               flat_compound(),
+               Compound.put_sub_compound(flat_compound(), Compound.new([]))
+             )
+
+      assert RDF.Data.equal?(flat_compound(), Compound.graph(flat_compound()))
+
+      assert RDF.Data.equal?(
+               flat_compound(),
+               Compound.graph(flat_compound()) |> Graph.change_name(EX.Graph)
+             )
+
+      refute RDF.Data.equal?(
+               flat_compound(),
+               flat_compound() |> Compound.delete_descriptions(EX.S2)
+             )
+
+      refute RDF.Data.equal?(
+               flat_compound() |> Compound.delete_descriptions(EX.S2),
+               flat_compound()
+             )
     end
   end
 end

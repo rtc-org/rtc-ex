@@ -8,7 +8,20 @@ defmodule RTC.Case do
   using do
     quote do
       alias RTC.Compound
-      alias RDF.{Dataset, Graph, Description, IRI, BlankNode, XSD, PrefixMap, PropertyMap, NS}
+
+      alias RDF.{
+        Dataset,
+        Graph,
+        Description,
+        Triple,
+        IRI,
+        BlankNode,
+        XSD,
+        PrefixMap,
+        PropertyMap,
+        NS
+      }
+
       alias RDF.NS.{RDFS, OWL}
       alias unquote(__MODULE__).{EX, FOAF}
 

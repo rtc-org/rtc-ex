@@ -487,6 +487,88 @@ defmodule RTC.Compound do
   defdelegate statement_count(compound), to: __MODULE__, as: :statement_count
 
   @doc """
+  The set of all subjects used in the triples within a `RTC.Compound` or any its sub-compounds.
+
+  ## Examples
+
+      iex> RTC.Compound.new([
+      ...>   {EX.S1, EX.p1, EX.O1},
+      ...>   {EX.S2, EX.p2, EX.O2},
+      ...>   {EX.S1, EX.p2, EX.O3}],
+      ...>   EX.Compound)
+      ...> |> RTC.Compound.subjects()
+      MapSet.new([RDF.iri(EX.S1), RDF.iri(EX.S2)])
+  """
+  def subjects(%__MODULE__{} = compound) do
+    Enum.reduce(compound.sub_compounds, Graph.subjects(compound.graph), fn
+      {_, sub_compound}, subjects -> MapSet.union(subjects, subjects(sub_compound))
+    end)
+  end
+
+  @doc """
+  The set of all properties used in the triples within a `RTC.Compound` or any its sub-compounds.
+
+  ## Examples
+
+      iex> RTC.Compound.new([
+      ...>   {EX.S1, EX.p1, EX.O1},
+      ...>   {EX.S2, EX.p2, EX.O2},
+      ...>   {EX.S1, EX.p2, EX.O3}],
+      ...>   EX.Compound)
+      ...> |> RTC.Compound.predicates()
+      MapSet.new([EX.p1, EX.p2])
+  """
+  def predicates(%__MODULE__{} = compound) do
+    Enum.reduce(compound.sub_compounds, Graph.predicates(compound.graph), fn
+      {_, sub_compound}, subjects -> MapSet.union(subjects, predicates(sub_compound))
+    end)
+  end
+
+  @doc """
+  The set of all resources used in the objects of the triples within a `RTC.Compound` or any its sub-compounds.
+
+  Note: This function does collect only IRIs and BlankNodes, not Literals.
+
+  ## Examples
+
+      iex> RTC.Compound.new([
+      ...>   {EX.S1, EX.p1, EX.O1},
+      ...>   {EX.S2, EX.p2, EX.O2},
+      ...>   {EX.S3, EX.p1, EX.O2},
+      ...>   {EX.S4, EX.p2, RDF.bnode(:bnode)},
+      ...>   {EX.S5, EX.p3, "foo"}],
+      ...>   EX.Compound)
+      ...> |> RTC.Compound.objects()
+      MapSet.new([RDF.iri(EX.O1), RDF.iri(EX.O2), RDF.bnode(:bnode)])
+  """
+  def objects(%__MODULE__{} = compound) do
+    Enum.reduce(compound.sub_compounds, Graph.objects(compound.graph), fn
+      {_, sub_compound}, subjects -> MapSet.union(subjects, objects(sub_compound))
+    end)
+  end
+
+  @doc """
+  The set of all resources used in the triples within a `RTC.Compound` or any its sub-compounds.
+
+  ## Examples
+
+      iex> RTC.Compound.new([
+      ...>   {EX.S1, EX.p1, EX.O1},
+      ...>   {EX.S2, EX.p1, EX.O2},
+      ...>   {EX.S2, EX.p2, RDF.bnode(:bnode)},
+      ...>   {EX.S3, EX.p1, "foo"}],
+      ...>   EX.Compound)
+      ...> |> RTC.Compound.resources()
+      MapSet.new([RDF.iri(EX.S1), RDF.iri(EX.S2), RDF.iri(EX.S3),
+        RDF.iri(EX.O1), RDF.iri(EX.O2), RDF.bnode(:bnode), EX.p1, EX.p2])
+  """
+  def resources(%__MODULE__{} = compound) do
+    Enum.reduce(compound.sub_compounds, Graph.resources(compound.graph), fn
+      {_, sub_compound}, subjects -> MapSet.union(subjects, resources(sub_compound))
+    end)
+  end
+
+  @doc """
   Returns a list of the `RDF.Description`s in the given `compound`.
   """
   @spec descriptions(t) :: [Description.t()]
@@ -602,6 +684,29 @@ defmodule RTC.Compound do
             {id, delete_descriptions(sub_compound, subjects)}
           end)
     }
+  end
+
+  @doc """
+  Pops an arbitrary triple from the given `compound` or any of its sub-compounds.
+  """
+  @spec pop(t) :: {Triple.t() | nil, t}
+  def pop(%__MODULE__{} = compound) do
+    if not Graph.empty?(compound.graph) do
+      {triple, graph} = Graph.pop(compound.graph)
+      {triple, %{compound | graph: graph}}
+    else
+      compound.sub_compounds
+      |> Enum.find_value(fn {_id, sub_compound} ->
+        case pop(sub_compound) do
+          {nil, _} -> nil
+          {triple, sub_compound} -> {triple, sub_compound}
+        end
+      end)
+      |> case do
+        nil -> {nil, compound}
+        {triple, sub_compound} -> {triple, put_sub_compound(compound, sub_compound)}
+      end
+    end
   end
 
   @doc """
@@ -832,5 +937,46 @@ defmodule RTC.Compound do
 
     def reduce(%Compound{} = compound, acc, fun),
       do: compound |> Compound.graph() |> Enumerable.reduce(acc, fun)
+  end
+
+  defimpl RDF.Data do
+    alias RTC.Compound
+    alias RDF.{Description, Graph, Dataset, Statement}
+
+    def merge(compound, data, opts \\ []) do
+      graph_name =
+        case data do
+          {_, _, _, graph_name} -> graph_name
+          %Graph{name: graph_name} -> graph_name
+          %Dataset{} -> compound.graph.name
+          _ -> nil
+        end
+
+      compound
+      |> Compound.graph(name: graph_name)
+      |> RDF.Data.merge(data, opts)
+    end
+
+    def delete(compound, input, _opts \\ []), do: Compound.delete(compound, input)
+    def pop(compound), do: Compound.pop(compound)
+    def empty?(compound), do: Compound.empty?(compound)
+    def include?(compound, input, _opts \\ []), do: Compound.include?(compound, input)
+    def describes?(compound, subject), do: Compound.describes?(compound, subject)
+    def description(compound, subject), do: Compound.description(compound, subject)
+    def descriptions(compound), do: Compound.descriptions(compound)
+    def statements(compound), do: Compound.statements(compound)
+    def subjects(compound), do: Compound.subjects(compound)
+    def predicates(compound), do: Compound.predicates(compound)
+    def objects(compound), do: Compound.objects(compound)
+    def resources(compound), do: Compound.resources(compound)
+    def subject_count(compound), do: compound |> subjects() |> MapSet.size()
+    def statement_count(compound), do: Compound.triple_count(compound)
+    def values(compound, opts \\ []), do: compound |> Compound.graph() |> Graph.values(opts)
+    def map(compound, fun), do: compound |> Compound.graph() |> Graph.values(fun)
+
+    def equal?(compound, %Compound{} = other),
+      do: compound |> Compound.graph() |> RDF.Data.equal?(Compound.graph(other))
+
+    def equal?(compound, data), do: compound |> Compound.graph() |> RDF.Data.equal?(data)
   end
 end
