@@ -907,15 +907,6 @@ defmodule RTC.Compound do
   end
 
   @doc """
-  Adds statements to the annotations of the given `compound`,
-  overwriting any previous statements with the given properties.
-  """
-  @spec put_annotations(t, Description.input()) :: t
-  def put_annotations(%__MODULE__{} = compound, annotations) do
-    %__MODULE__{compound | annotations: Description.put(compound.annotations, annotations)}
-  end
-
-  @doc """
   Deletes statements from the annotations of the given `compound`.
 
   Statements not part of the annotations are simply ignored.

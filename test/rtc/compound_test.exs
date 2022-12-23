@@ -1082,16 +1082,6 @@ defmodule RTC.CompoundTest do
              }
   end
 
-  test "put_annotations/2" do
-    assert flat_compound()
-           |> Compound.put_annotations({EX.Foo, EX.Bar})
-           |> Compound.put_annotations({EX.Foo, EX.Baz}) ==
-             %Compound{
-               flat_compound()
-               | annotations: RDF.description(EX.Compound, init: {EX.Foo, EX.Baz})
-             }
-  end
-
   test "delete_annotations/2" do
     assert Compound.new([], EX.Compound, annotations: {EX.Foo, EX.Bar})
            |> Compound.delete_annotations({EX.Foo, EX.Bar}) ==
