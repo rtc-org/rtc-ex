@@ -919,15 +919,14 @@ defmodule RTC.Compound do
   defimpl Enumerable do
     alias RTC.Compound
 
-    def count(%Compound{} = compound), do: {:ok, Compound.triple_count(compound)}
+    def reduce(%Compound{} = compound, acc, fun),
+      do: compound |> Compound.graph() |> Enumerable.reduce(acc, fun)
 
     def member?(%Compound{} = compound, triple), do: {:ok, Compound.include?(compound, triple)}
 
-    def slice(%Compound{} = compound),
-      do: compound |> Compound.graph() |> Enumerable.slice()
+    def count(_), do: {:error, __MODULE__}
 
-    def reduce(%Compound{} = compound, acc, fun),
-      do: compound |> Compound.graph() |> Enumerable.reduce(acc, fun)
+    def slice(_), do: {:error, __MODULE__}
   end
 
   defimpl RDF.Data do
