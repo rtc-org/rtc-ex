@@ -422,9 +422,9 @@ defmodule RTC.Compound do
   This value can be configured in your application with the following configuration
   on your `config.exs` files:
 
-      config :rtc, :element_style, :element_of
+      config :rtc, :element_style, :elements
 
-    When no `:element_style` is specified, the `:element_of` style is used by default.
+  When no `:element_style` is specified, the `:element_of` style is used by default.
   """
   def default_element_style, do: Application.get_env(:rtc, :element_style, :element_of)
 
@@ -880,7 +880,7 @@ defmodule RTC.Compound do
   end
 
   @doc """
-  Returns the merged annotations of all super-compound the given `compound`.
+  Returns the merged annotations of all super-compounds of the given `compound`.
   """
   @spec inherited_annotations(t) :: Description.t()
   def inherited_annotations(%__MODULE__{} = compound) do
