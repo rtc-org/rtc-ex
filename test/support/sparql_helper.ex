@@ -28,9 +28,8 @@ defmodule RTC.Test.SparqlHelper do
     end
   end
 
-  def create_repository(), do: create_repository(sparql_service_type())
-
-  def create_repository(:oxigraph), do: clean_sparql_service!(:oxigraph)
+  def create_repository(sparql_service_type \\ sparql_service_type())
+  def create_repository(:oxigraph), do: :ok
 
   def create_repository(:graph_db) do
     HTTPoison.put(
@@ -59,15 +58,14 @@ defmodule RTC.Test.SparqlHelper do
     )
   end
 
-  def delete_repository(), do: delete_repository(sparql_service_type())
+  def delete_repository!(sparql_service_type \\ sparql_service_type())
+  def delete_repository!(:oxigraph), do: :ok
 
-  def delete_repository(:oxigraph), do: clean_sparql_service!(:oxigraph)
-
-  def delete_repository(:graph_db) do
-    HTTPoison.delete(@sparql_service_settings[:graph_db][:endpoint])
+  def delete_repository!(:graph_db) do
+    :ok = HTTPoison.delete(@sparql_service_settings[:graph_db][:endpoint])
   end
 
-  def clean_sparql_service!(sparql_service_type) do
+  def clean_repository!(sparql_service_type \\ sparql_service_type()) do
     :ok =
       SPARQL.Client.delete(
         """
@@ -79,7 +77,7 @@ defmodule RTC.Test.SparqlHelper do
       )
   end
 
-  def insert(data), do: insert(data, sparql_service_type())
+  def insert(data, sparql_service_type \\ sparql_service_type())
 
   def insert(%Compound{} = compound, sparql_service_type) do
     compound
@@ -119,7 +117,7 @@ defmodule RTC.Test.SparqlHelper do
     do_insert(annotations, :graph_db)
   end
 
-  def from_sparql!(id), do: from_sparql!(id, sparql_service_type())
+  def from_sparql!(id, sparql_service_type \\ sparql_service_type())
 
   def from_sparql!(id, :oxigraph) do
     opts = [result_format: :turtle]

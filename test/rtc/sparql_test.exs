@@ -20,12 +20,14 @@ defmodule RTC.SPARQLTest do
     # as a test dependency, because it's a hard dependency of JSON-LD.ex at the
     # moment.
     Application.ensure_all_started(:hackney)
+
+    create_repository()
+
     :ok
   end
 
   setup do
-    create_repository()
-    on_exit(&delete_repository/0)
+    clean_repository!()
     :ok
   end
 
