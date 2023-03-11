@@ -4,21 +4,49 @@ defmodule RTC.Compound do
 
   An RDF Triple Compound is a set of triples embedded in an RDF graph.
 
-  You can create a such a set of triples either from scratch with the `new/1`
-  function or you can load an already existing compound from an RDF graph with
+  You can create such a set of triples either from scratch with the `new/1`
+  function, or you can load an already existing compound from an RDF graph with
   the `from_rdf/2` function.
 
   You can then use the various functions on this module to get its triples,
   sub-compounds, super-compounds and annotations or edit them.
 
   Finally, you can get back the RDF form of the compound with `to_rdf/2`.
-  If you only want a RDF graph of the contained triples (without the annotations),
+  If you only want an RDF graph of the contained triples (without the annotations),
   you can use the `graph/1` function.
+
+
+  ## Asserted and unasserted triples
+
+  A compound can contain both asserted and unasserted triples. When creating a
+  compound with initial triples with the `new/3` function or adding triples with
+  `add/3` you can specify in which assertion mode the given triples should be
+  interpreted with the `:assertion_mode` option and one of the values `:asserted`
+  or `:unasserted`. By default, `:asserted` is assumed, but you can configure the
+  default value in your application with the following configuration
+  on your `config.exs` files:
+
+      config :rtc, :assertion_mode, :unasserted
+
+  Additionally, you can provide triples with `:asserted` and `:unasserted` options,
+  which will be added in respective mode, independent of the set `:assertion_mode`.
+  When triples are given as both `:asserted` and `:unasserted` they are interpreted
+  as asserted. The directly given triples, however, have always higher priority,
+  whatever `:assertion_mode` is set.
+
+  All query functions operating over the set of triples and the `delete/3`
+  and `delete_description/3` function also support an `:assertion_mode` which
+  defines which triples should be considered with the following supported
+  values:
+
+  - `:all` (default): consider both asserted and unasserted triples
+  - `:asserted`: only consider asserted triples
+  - `:unasserted`: only consider unasserted triples
 
 
   ## Auto-generated ids
 
-  Various functions can be used in such a way, that the they will create compounds with
+  Various functions can be used in such a way, that they will create compounds with
   a proper resource identifier implicitly. By default, they will create a random blank
   node, but the identifier creation behavior can be configured and customized via
   `RDF.Resource.Generator`s.
@@ -37,8 +65,9 @@ defmodule RTC.Compound do
   alias RDF.{Statement, Triple, Description, Graph, BlankNode}
 
   # we have no explicit id field, since we're using the subject of the annotations for this
-  @enforce_keys [:graph, :annotations]
-  defstruct graph: nil,
+  @enforce_keys [:asserted, :annotations]
+  defstruct asserted: nil,
+            unasserted: Graph.new(),
             sub_compounds: %{},
             super_compounds: %{},
             annotations: nil
@@ -47,33 +76,55 @@ defmodule RTC.Compound do
   @type coercible_id :: Statement.coercible_subject()
 
   @type t :: %__MODULE__{
-          graph: Graph.t(),
+          asserted: Graph.t(),
+          unasserted: Graph.t(),
           sub_compounds: %{id => t()},
           super_compounds: %{id => Description.t()},
           annotations: Description.t()
         }
 
   @doc """
-  Creates a new compound.
+  Returns the default value of the `:element_style` option of `to_rdf/2`.
 
-  An id for the compound is automatically generated.
+  This value can be configured in your application with the following configuration
+  on your `config.exs` files:
+
+      config :rtc, :element_style, :elements
+
+  When no `:element_style` is specified, the `:element_of` style is used by default.
+  """
+  def default_element_style, do: Application.get_env(:rtc, :element_style, :element_of)
+
+  @doc """
+  Returns the default value of the `:assertion_mode` option.
+
+  This value can be configured in your application with the following configuration
+  on your `config.exs` files:
+
+      config :rtc, :assertion_mode, :unasserted
+
+  When no `:assertion_mode` is specified, the `:asserted` style is used by default.
+  """
+  def default_assertion_mode, do: Application.get_env(:rtc, :assertion_mode, :asserted)
+
+  @doc """
+  Creates a empty compound with an automatically generated id.
+
   See the module documentation for information on auto-generated ids.
   """
   @spec new :: t
   def new, do: new([])
 
   @doc """
-  Creates a new compound with the given set of triples.
+  Creates a compound with the given set of triples and an automatically generated id.
 
-  An id for the compound is automatically generated.
   If you want to define the id yourself, use `new/2` or `new/3`.
+  See the module documentation for information on auto-generated ids.
 
   Triples can be provided in any form accepted by `RDF.Graph.new/2`.
   When a list of triples is given which contains nested lists of triples,
   sub-compounds with auto-generated ids are generated and added for each
   of the nested lists.
-
-  See the module documentation for information on auto-generated ids.
   """
   @spec new(Graph.input()) :: t
   def new(triples), do: new(triples, [])
@@ -101,11 +152,15 @@ defmodule RTC.Compound do
   When a list of triples is given which contains nested lists of triples,
   sub-compounds with auto-generated ids are generated and added for each
   of the nested lists.
-  Alternatively, the `sub_compound` keyword can be used to provide one
-  or a list of sub-compounds to be added.
+  Alternatively, the `sub_compounds` option can be used to provide one or
+  a list of sub-compounds to be added.
 
   Available options:
 
+  - `:assertion_mode`: the assertion mode to be used for the `triples` to be added
+    (see module documentation section on "Asserted and unasserted triples")
+  - `:asserted`: asserted triples to be added
+  - `:unasserted`: unasserted triples to be added
   - `:name`: the name of the graph which gets returned by `graph/1` and
     `to_rdf/2` (by default, the compound id is used as the graph name or `nil`
     when the compound id is a blank node)
@@ -126,35 +181,63 @@ defmodule RTC.Compound do
 
   """
   @spec new(Graph.input(), coercible_id(), keyword) :: t
-  def new(triples, compound_id, opts) when is_list(triples) do
-    {graph, sub_compounds} =
-      Enum.reduce(triples, {Graph.new(), []}, fn
-        nested_triples, {graph, sub_compounds} when is_list(nested_triples) ->
-          {graph, [new(nested_triples) | sub_compounds]}
-
-        triple, {graph, sub_compounds} ->
-          {Graph.add(graph, triple), sub_compounds}
-      end)
-
-    opts = Keyword.update(opts, :sub_compounds, sub_compounds, &(sub_compounds ++ List.wrap(&1)))
-
-    new(graph, compound_id, opts)
-  end
-
   def new(triples, compound_id, opts) do
-    sub_compounds =
-      opts
-      |> Keyword.get(:sub_compounds)
-      |> List.wrap()
-      |> ensure_all_compounds!()
+    assertion_mode = assertion_mode(opts)
+    sub_compounds = normalize_sub_compounds(opts)
+    {triples, sub_compounds} = decompose_nested_triples(triples, sub_compounds, assertion_mode)
+
+    {asserted, sub_compounds} =
+      opts |> Keyword.get(:asserted, []) |> decompose_nested_triples(sub_compounds, :asserted)
+
+    {unasserted, sub_compounds} =
+      opts |> Keyword.get(:unasserted, []) |> decompose_nested_triples(sub_compounds, :unasserted)
+
+    unasserted = Graph.delete(unasserted, asserted)
+
+    {asserted, unasserted} =
+      case assertion_mode do
+        :asserted -> {Graph.add(asserted, triples), Graph.delete(unasserted, triples)}
+        :unasserted -> {Graph.delete(asserted, triples), Graph.add(unasserted, triples)}
+      end
 
     %__MODULE__{
-      graph: init_graph(triples, compound_id, opts),
+      asserted: init_graph(asserted, compound_id, opts),
+      unasserted: unasserted,
       sub_compounds: Map.new(sub_compounds, &{id(&1), &1}),
       annotations: new_annotation(compound_id, Keyword.get(opts, :annotations))
     }
     |> put_super_compound(Keyword.get(opts, :super_compounds, []))
   end
+
+  defp normalize_sub_compounds(opts) do
+    opts
+    |> Keyword.get(:sub_compounds)
+    |> List.wrap()
+    |> ensure_all_compounds!()
+  end
+
+  defp ensure_all_compounds!(compounds, acc \\ [])
+
+  defp ensure_all_compounds!([], acc), do: acc
+
+  defp ensure_all_compounds!([%__MODULE__{} = compound | rest], acc),
+    do: ensure_all_compounds!(rest, [compound | acc])
+
+  defp ensure_all_compounds!([non_compound | _], _),
+    do: raise(ArgumentError, "#{inspect(non_compound)} is not a compound")
+
+  defp decompose_nested_triples(triples, sub_compounds, assertion_mode) when is_list(triples) do
+    Enum.reduce(triples, {Graph.new(), List.wrap(sub_compounds)}, fn
+      nested_triples, {graph, sub_compounds} when is_list(nested_triples) ->
+        {graph, [new(nested_triples, assertion_mode: assertion_mode) | sub_compounds]}
+
+      triple, {graph, sub_compounds} ->
+        {Graph.add(graph, triple), sub_compounds}
+    end)
+  end
+
+  defp decompose_nested_triples(triples, sub_compounds, _),
+    do: {Graph.new(triples), sub_compounds}
 
   defp init_graph(triples, compound_id, opts) do
     opts =
@@ -170,15 +253,22 @@ defmodule RTC.Compound do
 
   defp default_prefixes, do: RDF.default_prefixes(rtc: RTC.NS.RTC)
 
-  defp ensure_all_compounds!(compounds, acc \\ [])
+  defp assertion_mode(opts) do
+    case Keyword.get(opts, :assertion_mode, default_assertion_mode()) do
+      :asserted -> :asserted
+      :unasserted -> :unasserted
+      v -> raise ArgumentError, "unexpected value for :assertion_mode opt: #{inspect(v)}"
+    end
+  end
 
-  defp ensure_all_compounds!([], acc), do: acc
-
-  defp ensure_all_compounds!([%__MODULE__{} = compound | rest], acc),
-    do: ensure_all_compounds!(rest, [compound | acc])
-
-  defp ensure_all_compounds!([non_compound | _], _),
-    do: raise(ArgumentError, "#{inspect(non_compound)} is not a compound")
+  defp assertion_mode_with_all(opts) do
+    case Keyword.get(opts, :assertion_mode, :all) do
+      :all -> :all
+      :asserted -> :asserted
+      :unasserted -> :unasserted
+      v -> raise ArgumentError, "unexpected value for :assertion_mode opt: #{inspect(v)}"
+    end
+  end
 
   defp new_annotation(compound_id, nil), do: RDF.description(compound_id)
 
@@ -191,6 +281,7 @@ defmodule RTC.Compound do
   @spec id(t) :: id()
   def id(%__MODULE__{} = compound), do: compound.annotations.subject
 
+  # for compatibility with RDF.Graph API
   defdelegate name(compound), to: __MODULE__, as: :id
 
   @doc """
@@ -200,11 +291,12 @@ defmodule RTC.Compound do
   def reset_id(%__MODULE__{} = compound, id) do
     %{
       compound
-      | graph: Graph.change_name(compound.graph, graph_name(id)),
+      | asserted: Graph.change_name(compound.asserted, graph_name(id)),
         annotations: Description.change_subject(compound.annotations, id)
     }
   end
 
+  # for compatibility with the RDF.Graph API
   defdelegate change_name(compound, name), to: __MODULE__, as: :reset_id
 
   @doc """
@@ -225,7 +317,7 @@ defmodule RTC.Compound do
 
     {elements, annotations} =
       graph
-      |> Graph.get(compound_id, Description.new(compound_id))
+      |> Graph.description(compound_id)
       |> Description.pop(RTC.elements())
 
     element_ofs =
@@ -245,9 +337,14 @@ defmodule RTC.Compound do
         &do_from_rdf(graph, Map.get(&1, :sub_compound), [compound_id | super_compound_ids])
       )
 
+    {asserted, unasserted} =
+      Enum.split_with(List.wrap(elements) ++ element_ofs, &Graph.include?(graph, &1))
+
     new(
-      List.wrap(elements) ++ element_ofs,
+      [],
       compound_id,
+      asserted: asserted,
+      unasserted: unasserted,
       sub_compounds: sub_compounds,
       super_compounds: super_compounds,
       annotations: annotations
@@ -370,7 +467,7 @@ defmodule RTC.Compound do
   When no `:element_style` is specified, the configurable result of the
   `default_element_style/0` function is used as the default.
 
-  The following options can used to customize the returned graph:
+  The following options can be used to customize the returned graph:
 
   - `:name`: the name of the graph to be created
     (by default, the compound id is used as the graph name, unless a blank node is used
@@ -386,8 +483,8 @@ defmodule RTC.Compound do
   @spec to_rdf(t, keyword) :: Graph.t()
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
     annotated_graph =
-      compound.graph
-      |> apply_graph_opts(compound, opts)
+      compound.asserted
+      |> apply_graph_opts(opts)
       |> annotate(compound, Keyword.get(opts, :element_style, default_element_style()))
       |> Graph.add({id(compound), RTC.subCompoundOf(), super_compounds(compound)})
 
@@ -399,39 +496,41 @@ defmodule RTC.Compound do
     end)
   end
 
-  defp apply_graph_opts(graph, compound, opts) do
+  defp apply_graph_opts(graph, opts) do
     graph
-    |> Graph.change_name(Keyword.get(opts, :name, compound.graph.name))
-    |> Graph.set_base_iri(Keyword.get(opts, :base_iri, compound.graph.base_iri))
-    |> Graph.add_prefixes(Keyword.get(opts, :prefixes, []))
+    |> apply_option(opts, :name, &Graph.change_name(&1, &2))
+    |> apply_option(opts, :base_iri, &Graph.set_base_iri(&1, &2))
+    |> apply_option(opts, :prefixes, &Graph.add_prefixes(&1, &2))
+  end
+
+  defp apply_option(subject, opts, opt, fun) do
+    if Keyword.has_key?(opts, opt) do
+      fun.(subject, Keyword.get(opts, opt))
+    else
+      subject
+    end
   end
 
   defp annotate(graph, compound, :element_of) do
     graph
     |> Graph.add(compound.annotations)
-    |> Graph.add_annotations(compound.graph, {RTC.elementOf(), id(compound)})
+    |> Graph.add_annotations(compound.asserted, {RTC.elementOf(), id(compound)})
+    |> Graph.add_annotations(compound.unasserted, {RTC.elementOf(), id(compound)})
   end
 
   defp annotate(graph, compound, :elements) do
-    Graph.add(graph, compound.annotations |> RTC.elements(Graph.triples(compound.graph)))
+    Graph.add(
+      graph,
+      compound.annotations
+      |> RTC.elements(Graph.triples(compound.asserted))
+      |> RTC.elements(Graph.triples(compound.unasserted))
+    )
   end
 
   @doc """
-  Returns the default value of the `:element_style` option of `to_rdf/2`.
+  Returns an RDF graph of the asserted triples in the compound (incl. its sub-compounds) without the annotations.
 
-  This value can be configured in your application with the following configuration
-  on your `config.exs` files:
-
-      config :rtc, :element_style, :elements
-
-  When no `:element_style` is specified, the `:element_of` style is used by default.
-  """
-  def default_element_style, do: Application.get_env(:rtc, :element_style, :element_of)
-
-  @doc """
-  Returns an RDF graph of the triples in the compound (incl. its sub-compounds) without the annotations.
-
-  The following options can used to customize the returned graph:
+  The following options can be used to customize the returned graph:
 
   - `:name`: the name of the graph to be created
     (by default, the compound id is used as the graph name, unless a blank node is used
@@ -444,20 +543,89 @@ defmodule RTC.Compound do
     and will be used for example when serializing in a format with base IRI support
 
   """
+  @spec asserted_graph(t, keyword) :: Graph.t()
+  def asserted_graph(%__MODULE__{} = compound, opts \\ []) do
+    Enum.reduce(
+      compound.sub_compounds,
+      apply_graph_opts(compound.asserted, opts),
+      fn {_, sub_compound}, graph -> Graph.add(graph, asserted_graph(sub_compound)) end
+    )
+  end
+
+  @doc """
+  Returns an RDF graph of the unasserted triples in the compound (incl. its sub-compounds) without the annotations.
+
+  The following options can be used to customize the returned graph:
+
+  - `:name`: the name of the graph to be created
+    (by default, the compound id is used as the graph name, unless a blank node is used
+    as the compound id, or the one specified with `:name` on `new/3`)
+  - `:prefixes`: some prefix mappings which should be added the graph
+    and will be used for example when serializing in a format with prefix support
+    (the `RDF.default_prefixes/0` together with the `rtc` prefix or the ones
+     specified with `:prefixes` on `new/3` are already added)
+  - `:base_iri`: a base IRI which should be stored alongside the graph
+    and will be used for example when serializing in a format with base IRI support
+
+  """
+  @spec unasserted_graph(t, keyword) :: Graph.t()
+  def unasserted_graph(%__MODULE__{} = compound, opts \\ []) do
+    Enum.reduce(
+      compound.sub_compounds,
+      compound |> proper_unasserted_graph() |> apply_graph_opts(opts),
+      fn {_, sub_compound}, graph -> Graph.add(graph, unasserted_graph(sub_compound)) end
+    )
+  end
+
+  defp proper_unasserted_graph(compound) do
+    %Graph{compound.asserted | descriptions: compound.unasserted.descriptions}
+  end
+
+  @doc """
+  Returns an RDF graph of all the asserted and unasserted triples in the compound (incl. its sub-compounds) without the annotations.
+
+  The following options can be used to customize the returned graph:
+
+  - `:name`: the name of the graph to be created
+    (by default, the compound id is used as the graph name, unless a blank node is used
+    as the compound id, or the one specified with `:name` on `new/3`)
+  - `:prefixes`: some prefix mappings which should be added the graph
+    and will be used for example when serializing in a format with prefix support
+    (the `RDF.default_prefixes/0` together with the `rtc` prefix or the ones
+     specified with `:prefixes` on `new/3` are already added)
+  - `:base_iri`: a base IRI which should be stored alongside the graph
+    and will be used for example when serializing in a format with base IRI support
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
+  """
   @spec graph(t, keyword) :: Graph.t()
   def graph(%__MODULE__{} = compound, opts \\ []) do
-    Enum.reduce(compound.sub_compounds, apply_graph_opts(compound.graph, compound, opts), fn
-      {_, sub_compound}, graph -> Graph.add(graph, graph(sub_compound))
-    end)
+    case assertion_mode_with_all(opts) do
+      :all ->
+        compound
+        |> asserted_graph(opts)
+        |> Graph.add(unasserted_graph(compound, opts))
+
+      :asserted ->
+        asserted_graph(compound, opts)
+
+      :unasserted ->
+        unasserted_graph(compound, opts)
+    end
   end
 
   @doc """
   Returns a list of the triples in the given `compound`.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
   """
-  @spec triples(t) :: [Triple.t()]
-  def triples(%__MODULE__{} = compound) do
+  @spec triples(t, keyword) :: [Triple.t()]
+  def triples(%__MODULE__{} = compound, opts \\ []) do
     compound
-    |> graph()
+    |> graph(opts)
     |> Graph.triples()
   end
 
@@ -465,29 +633,44 @@ defmodule RTC.Compound do
 
   @doc """
   Returns if the given `compound` (and of its sub-compounds) does not contain any triples.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
   """
-  @spec empty?(t) :: boolean
-  def empty?(%__MODULE__{} = compound) do
-    Graph.empty?(compound.graph) and
-      Enum.all?(compound.sub_compounds, fn {_, sub_compound} ->
-        empty?(sub_compound)
-      end)
+  @spec empty?(t, keyword) :: boolean
+  def empty?(%__MODULE__{} = compound, opts \\ []) do
+    assertion_mode = assertion_mode_with_all(opts)
+
+    (assertion_mode == :unasserted or Graph.empty?(compound.asserted)) and
+      (assertion_mode == :asserted or Graph.empty?(compound.unasserted)) and
+      Enum.all?(compound.sub_compounds, fn {_, sub_compound} -> empty?(sub_compound, opts) end)
   end
 
   @doc """
   Returns the number of triples in the given `compound`.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
   """
-  @spec triple_count(t) :: non_neg_integer
-  def triple_count(%__MODULE__{} = compound) do
+  @spec triple_count(t, keyword) :: non_neg_integer
+  def triple_count(%__MODULE__{} = compound, opts \\ []) do
     compound
-    |> graph()
+    |> graph(opts)
     |> Graph.triple_count()
   end
 
   defdelegate statement_count(compound), to: __MODULE__, as: :statement_count
 
   @doc """
-  The set of all subjects used in the triples within a `RTC.Compound` or any its sub-compounds.
+  The set of all subjects used in the triples within a `RTC.Compound` or any of its sub-compounds.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
 
   ## Examples
 
@@ -499,14 +682,32 @@ defmodule RTC.Compound do
       ...> |> RTC.Compound.subjects()
       MapSet.new([RDF.iri(EX.S1), RDF.iri(EX.S2)])
   """
-  def subjects(%__MODULE__{} = compound) do
-    Enum.reduce(compound.sub_compounds, Graph.subjects(compound.graph), fn
-      {_, sub_compound}, subjects -> MapSet.union(subjects, subjects(sub_compound))
+  @spec subjects(t, keyword) :: MapSet.t()
+  def subjects(%__MODULE__{} = compound, opts \\ []) do
+    subjects =
+      case assertion_mode_with_all(opts) do
+        :asserted ->
+          Graph.subjects(compound.asserted)
+
+        :unasserted ->
+          Graph.subjects(compound.unasserted)
+
+        :all ->
+          Graph.subjects(compound.asserted)
+          |> MapSet.union(Graph.subjects(compound.unasserted))
+      end
+
+    Enum.reduce(compound.sub_compounds, subjects, fn
+      {_, sub_compound}, subjects -> MapSet.union(subjects, subjects(sub_compound, opts))
     end)
   end
 
   @doc """
-  The set of all properties used in the triples within a `RTC.Compound` or any its sub-compounds.
+  The set of all properties used in the triples within a `RTC.Compound` or any of its sub-compounds.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
 
   ## Examples
 
@@ -518,16 +719,34 @@ defmodule RTC.Compound do
       ...> |> RTC.Compound.predicates()
       MapSet.new([EX.p1, EX.p2])
   """
-  def predicates(%__MODULE__{} = compound) do
-    Enum.reduce(compound.sub_compounds, Graph.predicates(compound.graph), fn
-      {_, sub_compound}, subjects -> MapSet.union(subjects, predicates(sub_compound))
+  @spec predicates(t, keyword) :: MapSet.t()
+  def predicates(%__MODULE__{} = compound, opts \\ []) do
+    predicates =
+      case assertion_mode_with_all(opts) do
+        :asserted ->
+          Graph.predicates(compound.asserted)
+
+        :unasserted ->
+          Graph.predicates(compound.unasserted)
+
+        :all ->
+          Graph.predicates(compound.asserted)
+          |> MapSet.union(Graph.predicates(compound.unasserted))
+      end
+
+    Enum.reduce(compound.sub_compounds, predicates, fn
+      {_, sub_compound}, predicates -> MapSet.union(predicates, predicates(sub_compound, opts))
     end)
   end
 
   @doc """
-  The set of all resources used in the objects of the triples within a `RTC.Compound` or any its sub-compounds.
+  The set of all resources used in the objects of the triples within a `RTC.Compound` or any of its sub-compounds.
 
   Note: This function does collect only IRIs and BlankNodes, not Literals.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
 
   ## Examples
 
@@ -541,14 +760,32 @@ defmodule RTC.Compound do
       ...> |> RTC.Compound.objects()
       MapSet.new([RDF.iri(EX.O1), RDF.iri(EX.O2), RDF.bnode(:bnode)])
   """
-  def objects(%__MODULE__{} = compound) do
-    Enum.reduce(compound.sub_compounds, Graph.objects(compound.graph), fn
-      {_, sub_compound}, subjects -> MapSet.union(subjects, objects(sub_compound))
+  @spec objects(t, keyword) :: MapSet.t()
+  def objects(%__MODULE__{} = compound, opts \\ []) do
+    objects =
+      case assertion_mode_with_all(opts) do
+        :asserted ->
+          Graph.objects(compound.asserted)
+
+        :unasserted ->
+          Graph.objects(compound.unasserted)
+
+        :all ->
+          Graph.objects(compound.asserted)
+          |> MapSet.union(Graph.objects(compound.unasserted))
+      end
+
+    Enum.reduce(compound.sub_compounds, objects, fn
+      {_, sub_compound}, objects -> MapSet.union(objects, objects(sub_compound, opts))
     end)
   end
 
   @doc """
-  The set of all resources used in the triples within a `RTC.Compound` or any its sub-compounds.
+  The set of all resources used in the triples within a `RTC.Compound` or any of its sub-compounds.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
 
   ## Examples
 
@@ -562,35 +799,62 @@ defmodule RTC.Compound do
       MapSet.new([RDF.iri(EX.S1), RDF.iri(EX.S2), RDF.iri(EX.S3),
         RDF.iri(EX.O1), RDF.iri(EX.O2), RDF.bnode(:bnode), EX.p1, EX.p2])
   """
-  def resources(%__MODULE__{} = compound) do
-    Enum.reduce(compound.sub_compounds, Graph.resources(compound.graph), fn
-      {_, sub_compound}, subjects -> MapSet.union(subjects, resources(sub_compound))
+  @spec resources(t, keyword) :: MapSet.t()
+  def resources(%__MODULE__{} = compound, opts \\ []) do
+    resources =
+      case assertion_mode_with_all(opts) do
+        :asserted ->
+          Graph.resources(compound.asserted)
+
+        :unasserted ->
+          Graph.resources(compound.unasserted)
+
+        :all ->
+          Graph.resources(compound.asserted)
+          |> MapSet.union(Graph.resources(compound.unasserted))
+      end
+
+    Enum.reduce(compound.sub_compounds, resources, fn
+      {_, sub_compound}, resources -> MapSet.union(resources, resources(sub_compound, opts))
     end)
   end
 
   @doc """
   Returns a list of the `RDF.Description`s in the given `compound`.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
   """
-  @spec descriptions(t) :: [Description.t()]
-  def descriptions(%__MODULE__{} = compound) do
+  @spec descriptions(t, keyword) :: [Description.t()]
+  def descriptions(%__MODULE__{} = compound, opts \\ []) do
     compound
-    |> graph()
+    |> graph(opts)
     |> Graph.descriptions()
   end
 
   @doc """
   Returns whether the given triples are an element of the given `compound` or any of its sub-compounds.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
   """
-  @spec include?(t, Graph.input()) :: boolean
-  def include?(%__MODULE__{} = compound, input) do
-    Graph.include?(compound.graph, input) or
-      Enum.any?(compound.sub_compounds, fn {_, sub_compound} ->
-        include?(sub_compound, input)
-      end)
+  @spec include?(t, Graph.input(), keyword) :: boolean
+  def include?(%__MODULE__{} = compound, input, opts \\ []) do
+    compound
+    |> graph(opts)
+    |> Graph.include?(input)
   end
 
   @doc """
   Returns whether the given `compound` or any of its sub-compounds contains triples about the given subject.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
 
   ## Examples
 
@@ -600,11 +864,14 @@ defmodule RTC.Compound do
         false
 
   """
-  @spec describes?(t, Statement.coercible_subject()) :: boolean
-  def describes?(%__MODULE__{} = compound, subject) do
-    Graph.describes?(compound.graph, subject) or
+  @spec describes?(t, Statement.coercible_subject(), keyword) :: boolean
+  def describes?(%__MODULE__{} = compound, subject, opts \\ []) do
+    assertion_mode = assertion_mode_with_all(opts)
+
+    (assertion_mode != :unasserted and Graph.describes?(compound.asserted, subject)) or
+      (assertion_mode != :asserted and Graph.describes?(compound.unasserted, subject)) or
       Enum.any?(compound.sub_compounds, fn {_, sub_compound} ->
-        describes?(sub_compound, subject)
+        describes?(sub_compound, subject, opts)
       end)
   end
 
@@ -612,6 +879,10 @@ defmodule RTC.Compound do
   Returns the description of the given subject.
 
   When the subject can not be found an empty description is returned.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
 
   ## Examples
 
@@ -628,7 +899,7 @@ defmodule RTC.Compound do
   def description(%__MODULE__{} = compound, subject) do
     Enum.reduce(
       compound.sub_compounds,
-      Graph.get(compound.graph, subject, Description.new(subject)),
+      Graph.description(compound.asserted, subject),
       fn {_, sub_compound}, description ->
         Description.add(description, description(sub_compound, subject))
       end
@@ -636,34 +907,115 @@ defmodule RTC.Compound do
   end
 
   @doc """
-  Adds triples to the given `compound`.
+  Adds `triples` to the given `compound`.
 
   Triples can be provided in any form accepted by `RDF.Graph.add/2`.
+
+  Available options:
+
+  - `:assertion_mode`: the assertion mode to be used for the `triples` to be added
+    (see module documentation section on "Asserted and unasserted triples")
+  - `:asserted`: asserted triples to be added
+  - `:unasserted`: unasserted triples to be added
+
+  When triples are given as both `:asserted` and `:unasserted` they are interpreted
+  as asserted. The directly given `triples`, however, have always higher priority,
+  whatever `:assertion_mode` is set.
   """
-  @spec add(t, Graph.input()) :: t
-  def add(compound, triples) do
-    update_graph(compound, &Graph.add(&1, triples))
+  @spec add(t, Graph.input(), keyword) :: t
+  def add(compound, triples, opts \\ []) do
+    compound =
+      compound
+      |> apply_option(
+        opts,
+        :unasserted,
+        &update_unasserted(&1, fn graph -> Graph.add(graph, &2, opts) end)
+      )
+      |> apply_option(
+        opts,
+        :unasserted,
+        &update_asserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
+      )
+      |> apply_option(
+        opts,
+        :asserted,
+        &update_unasserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
+      )
+      |> apply_option(
+        opts,
+        :asserted,
+        &update_asserted(&1, fn graph -> Graph.add(graph, &2, opts) end)
+      )
+
+    case assertion_mode(opts) do
+      :asserted ->
+        compound
+        |> update_unasserted(&Graph.delete(&1, triples, opts))
+        |> update_asserted(&Graph.add(&1, triples, opts))
+
+      :unasserted ->
+        compound
+        |> update_asserted(&Graph.delete(&1, triples, opts))
+        |> update_unasserted(&Graph.add(&1, triples, opts))
+    end
   end
 
-  defp update_graph(compound, fun) do
-    %__MODULE__{compound | graph: fun.(compound.graph)}
+  defp update_asserted(compound, fun) do
+    %__MODULE__{compound | asserted: fun.(compound.asserted)}
+  end
+
+  defp update_unasserted(compound, fun) do
+    %__MODULE__{compound | unasserted: fun.(compound.unasserted)}
   end
 
   @doc """
-  Deletes triples from the given `compound`.
+  Deletes `triples` from the given `compound`.
 
   Triples can be provided in any form accepted by `RDF.Graph.delete/2`.
 
   If a triple occurs in one or more sub-compounds, it gets deleted from all of them.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
   """
-  @spec delete(t, Graph.input()) :: t
-  def delete(%__MODULE__{} = compound, triples) do
+  @spec delete(t, Graph.input(), keyword) :: t
+  def delete(%__MODULE__{} = compound, triples, opts \\ []) do
+    assertion_mode = assertion_mode_with_all(opts)
+
+    compound =
+      if assertion_mode in [:all, :asserted] do
+        update_asserted(compound, &Graph.delete(&1, triples, opts))
+      else
+        compound
+      end
+
+    compound =
+      if assertion_mode in [:all, :unasserted] do
+        update_unasserted(compound, &Graph.delete(&1, triples, opts))
+      else
+        compound
+      end
+
+    compound =
+      compound
+      |> apply_option(
+        opts,
+        :asserted,
+        &update_asserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
+      )
+      |> apply_option(
+        opts,
+        :unasserted,
+        &update_unasserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
+      )
+
     %__MODULE__{
       compound
-      | graph: Graph.delete(compound.graph, triples),
-        sub_compounds:
+      | sub_compounds:
           Map.new(compound.sub_compounds, fn {id, sub_compound} ->
-            {id, delete(sub_compound, triples)}
+            {id, delete(sub_compound, triples, opts)}
           end)
     }
   end
@@ -672,16 +1024,40 @@ defmodule RTC.Compound do
   Deletes all triples with the given `subjects` from the given `compound`.
 
   If a triple occurs in one or more sub-compounds, it gets deleted from all of them.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
   """
-  @spec delete_descriptions(t, Statement.coercible_subject() | [Statement.coercible_subject()]) ::
+  @spec delete_descriptions(
+          t,
+          Statement.coercible_subject() | [Statement.coercible_subject()],
+          keyword
+        ) ::
           t
-  def delete_descriptions(%__MODULE__{} = compound, subjects) do
+  def delete_descriptions(%__MODULE__{} = compound, subjects, opts \\ []) do
+    assertion_mode = assertion_mode_with_all(opts)
+
+    compound =
+      if assertion_mode in [:all, :asserted] do
+        update_asserted(compound, &Graph.delete_descriptions(&1, subjects, opts))
+      else
+        compound
+      end
+
+    compound =
+      if assertion_mode in [:all, :unasserted] do
+        update_unasserted(compound, &Graph.delete_descriptions(&1, subjects, opts))
+      else
+        compound
+      end
+
     %__MODULE__{
       compound
-      | graph: Graph.delete_descriptions(compound.graph, subjects),
-        sub_compounds:
+      | sub_compounds:
           Map.new(compound.sub_compounds, fn {id, sub_compound} ->
-            {id, delete_descriptions(sub_compound, subjects)}
+            {id, delete_descriptions(sub_compound, subjects, opts)}
           end)
     }
   end
@@ -691,21 +1067,27 @@ defmodule RTC.Compound do
   """
   @spec pop(t) :: {Triple.t() | nil, t}
   def pop(%__MODULE__{} = compound) do
-    if not Graph.empty?(compound.graph) do
-      {triple, graph} = Graph.pop(compound.graph)
-      {triple, %{compound | graph: graph}}
-    else
-      compound.sub_compounds
-      |> Enum.find_value(fn {_id, sub_compound} ->
-        case pop(sub_compound) do
-          {nil, _} -> nil
-          {triple, sub_compound} -> {triple, sub_compound}
+    cond do
+      not Graph.empty?(compound.asserted) ->
+        {triple, graph} = Graph.pop(compound.asserted)
+        {triple, %{compound | asserted: graph}}
+
+      not Graph.empty?(compound.unasserted) ->
+        {triple, graph} = Graph.pop(compound.unasserted)
+        {triple, %{compound | unasserted: graph}}
+
+      true ->
+        compound.sub_compounds
+        |> Enum.find_value(fn {_id, sub_compound} ->
+          case pop(sub_compound) do
+            {nil, _} -> nil
+            {triple, sub_compound} -> {triple, sub_compound}
+          end
+        end)
+        |> case do
+          nil -> {nil, compound}
+          {triple, sub_compound} -> {triple, put_sub_compound(compound, sub_compound)}
         end
-      end)
-      |> case do
-        nil -> {nil, compound}
-        {triple, sub_compound} -> {triple, put_sub_compound(compound, sub_compound)}
-      end
     end
   end
 
@@ -938,7 +1320,7 @@ defmodule RTC.Compound do
         case data do
           {_, _, _, graph_name} -> graph_name
           %Graph{name: graph_name} -> graph_name
-          %Dataset{} -> compound.graph.name
+          %Dataset{} -> compound.asserted.name
           _ -> nil
         end
 

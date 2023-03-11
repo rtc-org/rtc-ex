@@ -117,6 +117,17 @@ defmodule RTC.Test.SparqlHelper do
     do_insert(annotations, :graph_db)
   end
 
+  def full_graph(sparql_service_type \\ sparql_service_type()) do
+    with {:ok, result} <-
+           """
+           CONSTRUCT { ?s ?p ?o . }
+           WHERE     {	?s ?p ?o . }
+           """
+           |> SPARQL.Client.construct(@sparql_service_settings[sparql_service_type][:endpoint]) do
+      result
+    end
+  end
+
   def from_sparql!(id, sparql_service_type \\ sparql_service_type())
 
   def from_sparql!(id, :oxigraph) do

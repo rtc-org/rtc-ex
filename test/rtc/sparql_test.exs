@@ -59,7 +59,7 @@ defmodule RTC.SPARQLTest do
       triples =
         [first | rest] = [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}, {EX.S3, EX.P3, EX.O3}]
 
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(first, add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)})
       |> Graph.add(rest)
       |> Graph.add(EX.Compound |> RTC.elements(rest))
@@ -70,7 +70,7 @@ defmodule RTC.SPARQLTest do
     end
 
     test "retrieves a nested compound (via rtc:elements)" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples())
       |> Graph.add(EX.Compound |> RTC.elements(triples()))
       |> Graph.add(other_triples())
@@ -82,7 +82,7 @@ defmodule RTC.SPARQLTest do
     end
 
     test "retrieves a nested compound (via rtc:elementOf)" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
       |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
       |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
@@ -92,7 +92,7 @@ defmodule RTC.SPARQLTest do
     end
 
     test "retrieves a deeply nested compound (via rtc:elements)" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples())
       |> Graph.add(EX.Compound |> RTC.elements(triples()))
       |> Graph.add(other_triples())
@@ -107,7 +107,7 @@ defmodule RTC.SPARQLTest do
     end
 
     test "retrieves a deeply nested compound (via rtc:elementOf)" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
       |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
       |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
@@ -139,7 +139,7 @@ defmodule RTC.SPARQLTest do
     end
 
     test "retrieves annotations (sub-compounds)" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
       |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
       |> Graph.add(EX.Compound |> EX.foo1(EX.Bar1))
@@ -154,7 +154,7 @@ defmodule RTC.SPARQLTest do
     end
 
     test "annotations from super-compounds (rtc:elementOf)" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
       |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
       |> Graph.add(EX.Compound |> EX.foo1(EX.Bar1))
@@ -169,7 +169,9 @@ defmodule RTC.SPARQLTest do
     end
 
     test "annotations from super-compounds (rtc:elements)" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
+      |> Graph.add(triples())
+      |> Graph.add(other_triples())
       |> Graph.add(EX.Compound |> RTC.elements(triples()) |> EX.foo1(EX.Bar1))
       |> Graph.add(
         EX.SubCompound
@@ -187,7 +189,9 @@ defmodule RTC.SPARQLTest do
     end
 
     test "annotations from different super-compounds" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
+      |> Graph.add(triples())
+      |> Graph.add(other_triples())
       |> Graph.add(EX.Compound |> RTC.elements(triples()) |> EX.foo1(EX.Bar1))
       |> Graph.add(
         EX.OtherSuperCompound
@@ -221,7 +225,10 @@ defmodule RTC.SPARQLTest do
     end
 
     test "annotations in sub-compounds" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
+      |> Graph.add({EX.S, EX.P, EX.O})
+      |> Graph.add(triples())
+      |> Graph.add(other_triples())
       |> Graph.add(
         EX.Compound
         |> RTC.elements(triples())
@@ -265,7 +272,7 @@ defmodule RTC.SPARQLTest do
     end
 
     test "cyclic sub-compounds raise an error" do
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
       |> Graph.add({EX.Compound, RTC.subCompoundOf(), EX.Compound})
       |> insert()
@@ -274,7 +281,7 @@ defmodule RTC.SPARQLTest do
         from_sparql!(EX.Compound)
       end
 
-      RDF.graph(name: RDF.iri(EX.Compound))
+      graph()
       |> Graph.add(triples(), add_annotations: {RTC.elementOf(), EX.Compound})
       |> Graph.add(other_triples(), add_annotations: {RTC.elementOf(), EX.SubCompound})
       |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
@@ -285,5 +292,43 @@ defmodule RTC.SPARQLTest do
         from_sparql!(EX.Compound)
       end
     end
+  end
+
+  test "unasserted triples" do
+    graph()
+    |> Graph.add_annotations(triples(), {RTC.elementOf(), RDF.iri(EX.Compound)})
+    |> insert()
+
+    assert from_sparql!(EX.Compound) ==
+             unasserted_flat_compound()
+  end
+
+  test "asserted and unasserted triples" do
+    graph()
+    |> Graph.add({EX.S1, EX.P1, EX.O1},
+      add_annotations: {RTC.elementOf(), RDF.iri(EX.Compound)}
+    )
+    |> Graph.add_annotations(
+      {EX.S2, EX.P2, EX.O2},
+      {RTC.elementOf(), RDF.iri(EX.Compound)}
+    )
+    |> insert()
+
+    assert from_sparql!(EX.Compound) ==
+             mixed_asserted_flat_compound()
+  end
+
+  test "unasserted triples in nested compounds" do
+    graph()
+    |> Graph.add_annotations(triples(), {RTC.elementOf(), RDF.iri(EX.Compound)})
+    |> Graph.add_annotations(
+      other_triples(),
+      {RTC.elementOf(), RDF.iri(EX.SubCompound)}
+    )
+    |> Graph.add({EX.SubCompound, RTC.subCompoundOf(), EX.Compound})
+    |> insert()
+
+    assert from_sparql!(EX.Compound) ==
+             unasserted_nested_compound()
   end
 end

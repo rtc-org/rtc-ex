@@ -18,10 +18,12 @@ if Code.ensure_loaded?(SPARQL.Client) do
       do: from_endpoint(endpoint, compound_id, default_opts())
 
     def from_endpoint(endpoint, compound_id, opts) do
+      opts = Keyword.put(opts, :raw_mode, true)
+
       with {:ok, results} <-
              compound_id
              |> graph_query()
-             |> SPARQL.Client.query(endpoint, opts) do
+             |> SPARQL.Client.construct(endpoint, opts) do
         from_results(results, compound_id)
       end
     end
@@ -29,11 +31,17 @@ if Code.ensure_loaded?(SPARQL.Client) do
     defp graph_query(compound_id) do
       compound_id = RDF.Statement.coerce_subject(compound_id)
 
+      # TODO: use BIND( TRIPLE(?s, ?p, ?o) AS ?t ) when the new SPARQL 1.2 TRIPLE function is more widely supported
       """
       #{@prefixes}
       CONSTRUCT {
+        ?s1 ?p1 ?o1 .
+        ?s2 ?p2 ?o2 .
+        ?s3 ?p3 ?o3 .
+        ?s4 ?p4 ?o4 .
+
         <#{compound_id}> ?compound_p ?compound_o ;
-            rtc:elements ?triple .
+          rtc:elements ?triple .
 
         ?sub_compound ?sub_compound_p ?sub_compound_o ;
           rtc:elements ?sub_triple .
@@ -41,14 +49,28 @@ if Code.ensure_loaded?(SPARQL.Client) do
         ?super_compound ?super_compound_p ?super_compound_o .
       }
       WHERE {
-        { ?triple rtc:elementOf <#{compound_id}> . }
+        {
+          ?triple rtc:elementOf <#{compound_id}> .
+          OPTIONAL {
+            << ?s1 ?p1 ?o1 >> rtc:elementOf <#{compound_id}> .
+            ?s1 ?p1 ?o1 .
+          }
+        }
         UNION
-        { <#{compound_id}> ?compound_p ?compound_o . }
+        {
+          <#{compound_id}> ?compound_p ?compound_o .
+          OPTIONAL {
+            <#{compound_id}> rtc:elements << ?s2 ?p2 ?o2 >> .
+            ?s2 ?p2 ?o2 .
+          }
+        }
         UNION
         {
           ?sub_compound rtc:subCompoundOf+ <#{compound_id}> ;
             ?sub_compound_p ?sub_compound_o .
           OPTIONAL { ?sub_triple rtc:elementOf ?sub_compound . }
+          OPTIONAL { << ?s3 ?p3 ?o3 >> rtc:elementOf ?sub_compound . ?s3 ?p3 ?o3 }
+          OPTIONAL { ?sub_compound rtc:elements << ?s4 ?p4 ?o4 >> . ?s4 ?p4 ?o4 }
           OPTIONAL {
             ?sub_compound rtc:subCompoundOf+ ?super_compound .
             OPTIONAL { ?super_compound ?super_compound_p ?super_compound_o . }
