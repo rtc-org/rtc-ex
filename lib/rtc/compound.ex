@@ -545,11 +545,15 @@ defmodule RTC.Compound do
   """
   @spec asserted_graph(t, keyword) :: Graph.t()
   def asserted_graph(%__MODULE__{} = compound, opts \\ []) do
-    Enum.reduce(
-      compound.sub_compounds,
-      apply_graph_opts(compound.asserted, opts),
-      fn {_, sub_compound}, graph -> Graph.add(graph, asserted_graph(sub_compound)) end
-    )
+    compound.asserted
+    |> apply_graph_opts(opts)
+    |> Graph.add(do_asserted_graph(compound.sub_compounds))
+  end
+
+  defp do_asserted_graph(sub_compounds) do
+    Enum.flat_map(sub_compounds, fn {_, compound} ->
+      [compound.asserted | do_asserted_graph(compound.sub_compounds)]
+    end)
   end
 
   @doc """
@@ -570,14 +574,19 @@ defmodule RTC.Compound do
   """
   @spec unasserted_graph(t, keyword) :: Graph.t()
   def unasserted_graph(%__MODULE__{} = compound, opts \\ []) do
-    Enum.reduce(
-      compound.sub_compounds,
-      compound |> proper_unasserted_graph() |> apply_graph_opts(opts),
-      fn {_, sub_compound}, graph -> Graph.add(graph, unasserted_graph(sub_compound)) end
-    )
+    compound
+    |> unasserted_graph_with_proper_metadata()
+    |> apply_graph_opts(opts)
+    |> Graph.add(do_unasserted_graph(compound.sub_compounds))
   end
 
-  defp proper_unasserted_graph(compound) do
+  defp do_unasserted_graph(sub_compounds) do
+    Enum.flat_map(sub_compounds, fn {_, compound} ->
+      [compound.unasserted | do_unasserted_graph(compound.sub_compounds)]
+    end)
+  end
+
+  defp unasserted_graph_with_proper_metadata(compound) do
     %Graph{compound.asserted | descriptions: compound.unasserted.descriptions}
   end
 
