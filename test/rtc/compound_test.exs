@@ -1019,6 +1019,57 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  test "get/3" do
+    s1_description_1t = Description.new(EX.S1, init: {EX.P1, EX.O1})
+    s1_description_2t = Description.new(EX.S1, init: [{EX.P1, [EX.O1, EX.O2]}])
+
+    assert Compound.get(flat_compound(), EX.S1) == s1_description_1t
+
+    assert Compound.get(flat_compound(), EX.S1, nil, assertion_mode: :asserted) ==
+             s1_description_1t
+
+    assert Compound.get(flat_compound(), EX.S1, nil, assertion_mode: :unasserted) ==
+             nil
+
+    assert Compound.get(flat_compound(), EX.S1, :foo, assertion_mode: :unasserted) ==
+             :foo
+
+    assert Compound.get(unasserted_flat_compound(), EX.S1) == s1_description_1t
+
+    assert Compound.get(unasserted_flat_compound(), EX.S1, nil, assertion_mode: :unasserted) ==
+             s1_description_1t
+
+    assert Compound.get(unasserted_flat_compound(), EX.S1, nil, assertion_mode: :asserted) ==
+             nil
+
+    assert Compound.get(mixed_asserted_flat_compound(), EX.S1) == s1_description_1t
+
+    mixed_asserted_flat_compound =
+      mixed_asserted_flat_compound(
+        [{EX.S1, EX.P1, EX.O1}],
+        [{EX.S1, EX.P1, EX.O2}]
+      )
+
+    assert Compound.get(mixed_asserted_flat_compound, EX.S1) == s1_description_2t
+
+    assert Compound.get(mixed_asserted_flat_compound, EX.S1, nil, assertion_mode: :asserted) ==
+             s1_description_1t
+
+    assert Compound.get(mixed_asserted_flat_compound, EX.S1, nil, assertion_mode: :unasserted) ==
+             Description.new(EX.S1, init: {EX.P1, EX.O2})
+
+    nested_compound = nested_compound(triples(), sub_compound({EX.S1, EX.P2, EX.O2}))
+
+    assert Compound.get(nested_compound, EX.S1) ==
+             Description.new(EX.S1, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
+
+    assert Compound.get(nested_compound, EX.S1, nil, assertion_mode: :asserted) ==
+             Description.new(EX.S1, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
+
+    assert Compound.get(nested_compound, EX.S1, nil, assertion_mode: :unasserted) ==
+             nil
+  end
+
   describe "empty?/1" do
     test "with empty compound" do
       assert Compound.empty?(empty_compound()) == true

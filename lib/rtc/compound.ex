@@ -641,6 +641,114 @@ defmodule RTC.Compound do
   defdelegate statements(compound), to: __MODULE__, as: :triples
 
   @doc """
+  Gets the description of the given `subject`.
+
+  When the subject can not be found the optionally given default value or
+  `nil` is returned.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
+  ## Examples
+
+      iex> RTC.Compound.new([{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}], EX.Compound)
+      ...> |> RTC.Compound.get(EX.S1)
+      RDF.Description.new(EX.S1, init: {EX.P1, EX.O1})
+
+      iex> RTC.Compound.get(RTC.Compound.new(), EX.Foo)
+      nil
+
+      iex> RTC.Compound.get(RTC.Compound.new(), EX.Foo, :bar)
+      :bar
+
+  """
+  @spec get(t, Statement.coercible_subject(), any, keyword) :: Description.t() | any
+  def get(compound, subject, default \\ nil, opts \\ []) do
+    assertion_mode = assertion_mode_with_all(opts)
+
+    case do_get(assertion_mode, compound, subject) ++
+           do_get_sub(assertion_mode, compound.sub_compounds, subject) do
+      [] -> default
+      [description] -> description
+      [description | rest] -> Enum.into(rest, description)
+    end
+  end
+
+  defp do_get(:asserted, compound, subject),
+    do: Graph.get(compound.asserted, subject) |> List.wrap()
+
+  defp do_get(:unasserted, compound, subject),
+    do: Graph.get(compound.unasserted, subject) |> List.wrap()
+
+  defp do_get(:all, compound, subject) do
+    do_get(:asserted, compound, subject) ++ do_get(:unasserted, compound, subject)
+  end
+
+  defp do_get_sub(assertion_mode, sub_compounds, subject) do
+    Enum.flat_map(sub_compounds, fn {_, compound} ->
+      do_get(assertion_mode, compound, subject) ++
+        do_get_sub(assertion_mode, compound.sub_compounds, subject)
+    end)
+  end
+
+  @doc """
+  Returns the description of the given subject.
+
+  When the subject can not be found an empty description is returned.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
+  ## Examples
+
+      iex> RTC.Compound.new([{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}])
+      ...> |> RTC.Compound.description(EX.S1)
+      RDF.Description.new(EX.S1, init: {EX.P1, EX.O1})
+
+      iex> RTC.Compound.new([{EX.S, EX.P1, EX.O1}], sub_compounds: RTC.Compound.new([{EX.S, EX.P2, EX.O2}]))
+      ...> |> RTC.Compound.description(EX.S)
+      RDF.Description.new(EX.S, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
+
+      iex> RTC.Compound.new([])
+      ...> |> RTC.Compound.description(EX.S1)
+      RDF.Description.new(EX.S1)
+
+  """
+  @spec description(t, Statement.coercible_subject(), keyword) :: Description.t() | nil
+  def description(%__MODULE__{} = compound, subject, opts \\ []) do
+    get(compound, subject, Description.new(subject), opts)
+  end
+
+  @doc """
+  Fetches the description of the given subject.
+
+  When the subject can not be found `:error` is returned.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
+  ## Examples
+
+      iex> RTC.Compound.new([{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}], EX.Compound)
+      ...> |> RTC.Compound.fetch(EX.S1)
+      {:ok, RDF.Description.new(EX.S1, init: {EX.P1, EX.O1})}
+
+      iex> RTC.Compound.new() |> RTC.Compound.fetch(EX.foo)
+      :error
+
+  """
+  @spec fetch(t, Statement.coercible_subject(), keyword) :: {:ok, Description.t()} | :error
+  def fetch(%__MODULE__{} = compound, subject, opts \\ []) do
+    case get(compound, subject, nil, opts) do
+      nil -> :error
+      description -> {:ok, description}
+    end
+  end
+
+  @doc """
   Returns if the given `compound` (and of its sub-compounds) does not contain any triples.
 
   Supported options:
@@ -882,37 +990,6 @@ defmodule RTC.Compound do
       Enum.any?(compound.sub_compounds, fn {_, sub_compound} ->
         describes?(sub_compound, subject, opts)
       end)
-  end
-
-  @doc """
-  Returns the description of the given subject.
-
-  When the subject can not be found an empty description is returned.
-
-  Supported options:
-
-  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
-
-  ## Examples
-
-      iex> RTC.Compound.new([{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}])
-      ...> |> RTC.Compound.description(EX.S1)
-      RDF.Description.new(EX.S1, init: {EX.P1, EX.O1})
-
-      iex> RTC.Compound.new([{EX.S, EX.P1, EX.O1}], sub_compounds: RTC.Compound.new([{EX.S, EX.P2, EX.O2}]))
-      ...> |> RTC.Compound.description(EX.S)
-      RDF.Description.new(EX.S, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
-
-  """
-  @spec description(t, Statement.coercible_subject()) :: Description.t() | nil
-  def description(%__MODULE__{} = compound, subject) do
-    Enum.reduce(
-      compound.sub_compounds,
-      Graph.description(compound.asserted, subject),
-      fn {_, sub_compound}, description ->
-        Description.add(description, description(sub_compound, subject))
-      end
-    )
   end
 
   @doc """
