@@ -1757,6 +1757,75 @@ defmodule RTC.CompoundTest do
     end
   end
 
+  describe "pop/2" do
+    test "a single subject" do
+      assert Compound.pop(flat_compound(), EX.S1) ==
+               {Description.new(EX.S1, init: {EX.P1, EX.O1}),
+                flat_compound({EX.S2, EX.P2, EX.O2})}
+    end
+
+    test "a subjects that is not an element" do
+      assert Compound.pop(empty_compound(), EX.S2) == {nil, empty_compound()}
+    end
+
+    test "a subjects that is an element of a sub-compound" do
+      assert Compound.pop(nested_compound(), EX.S1) ==
+               {Description.new(EX.S1, init: {EX.P1, EX.O1}),
+                nested_compound({EX.S2, EX.P2, EX.O2}, sub_compound())}
+
+      assert Compound.pop(nested_compound(), EX.S3) ==
+               {Description.new(EX.S3, init: {EX.P3, EX.O3}),
+                nested_compound(triples(), sub_compound({EX.S4, EX.P4, EX.O4}))}
+
+      assert nested_compound([{EX.S4, EX.P4, EX.O5} | triples()], sub_compound())
+             |> Compound.pop(EX.S4) ==
+               {Description.new(EX.S4, init: {EX.P4, [EX.O4, EX.O5]}),
+                nested_compound(triples(), sub_compound({EX.S3, EX.P3, EX.O3}))}
+    end
+
+    test "assertion_mode" do
+      assert Compound.pop(flat_compound(), EX.S1, assertion_mode: :asserted) ==
+               {Description.new(EX.S1, init: {EX.P1, EX.O1}),
+                flat_compound({EX.S2, EX.P2, EX.O2})}
+
+      assert Compound.pop(flat_compound(), EX.S1, assertion_mode: :unasserted) ==
+               {nil, flat_compound()}
+
+      assert Compound.pop(unasserted_flat_compound(), EX.S1, assertion_mode: :asserted) ==
+               {nil, unasserted_flat_compound()}
+
+      assert Compound.pop(unasserted_flat_compound(), EX.S1, assertion_mode: :unasserted) ==
+               {Description.new(EX.S1, init: {EX.P1, EX.O1}),
+                unasserted_flat_compound({EX.S2, EX.P2, EX.O2})}
+
+      assert Compound.pop(unasserted_flat_compound(), EX.S1, assertion_mode: :all) ==
+               {Description.new(EX.S1, init: {EX.P1, EX.O1}),
+                unasserted_flat_compound({EX.S2, EX.P2, EX.O2})}
+
+      mixed_asserted_flat_compound =
+        mixed_asserted_flat_compound(triples(), [{EX.S2, EX.P3, EX.O3}])
+
+      assert Compound.pop(mixed_asserted_flat_compound, EX.S2, assertion_mode: :all) ==
+               {Description.new(EX.S2, init: [{EX.P2, EX.O2}, {EX.P3, EX.O3}]),
+                mixed_asserted_flat_compound([{EX.S1, EX.P1, EX.O1}], [])}
+
+      assert Compound.pop(mixed_asserted_flat_compound, EX.S2, assertion_mode: :asserted) ==
+               {Description.new(EX.S2, init: [{EX.P2, EX.O2}]),
+                mixed_asserted_flat_compound([{EX.S1, EX.P1, EX.O1}], [{EX.S2, EX.P3, EX.O3}])}
+
+      assert Compound.pop(mixed_asserted_flat_compound, EX.S2, assertion_mode: :unasserted) ==
+               {Description.new(EX.S2, init: [{EX.P3, EX.O3}]),
+                mixed_asserted_flat_compound(triples(), [])}
+
+      assert Compound.pop(unasserted_nested_compound(), EX.S4, assertion_mode: :unasserted) ==
+               {Description.new(EX.S4, init: [{EX.P4, EX.O4}]),
+                unasserted_nested_compound(
+                  triples(),
+                  unasserted_sub_compound({EX.S3, EX.P3, EX.O3})
+                )}
+    end
+  end
+
   describe "pop/1" do
     test "pops elements until empty" do
       [triple1, triple2, triple3, triple4] = Compound.triples(nested_compound())

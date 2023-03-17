@@ -1149,6 +1149,93 @@ defmodule RTC.Compound do
   end
 
   @doc """
+  Pops the description of the given subject.
+
+  Removes the description of the given `subject` from `compound` and
+  all of its sub-compounds.
+
+  Returns a tuple containing the description of the given subject
+  and the updated compound without this description.
+  `nil` is returned instead of the description if `compound` does
+  not contain a description of the given `subject`.
+
+  Supported options:
+
+  - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
+
+  ## Examples
+
+      iex> RTC.Compound.new([{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}], EX.Compound)
+      ...> |> RTC.Compound.pop(EX.S1)
+      {
+        RDF.Description.new(EX.S1, init: {EX.P1, EX.O1}),
+        RTC.Compound.new({EX.S2, EX.P2, EX.O2}, EX.Compound)
+      }
+
+      iex> RTC.Compound.new({EX.S, EX.P, EX.O}, EX.Compound)
+      ...> |> RTC.Compound.pop(EX.Missing)
+      {nil, RTC.Compound.new({EX.S, EX.P, EX.O}, EX.Compound)}
+
+  """
+  @spec pop(t, Statement.coercible_subject(), keyword) :: {Description.t() | nil, t}
+  def pop(%__MODULE__{} = compound, subject, opts \\ []) do
+    subject = RDF.coerce_subject(subject)
+    assertion_mode = assertion_mode_with_all(opts)
+
+    {description, compound} =
+      if assertion_mode in [:all, :asserted] do
+        case Graph.pop(compound.asserted, subject) do
+          {nil, _} ->
+            {nil, compound}
+
+          {asserted_description, new_asserted} ->
+            {asserted_description, %__MODULE__{compound | asserted: new_asserted}}
+        end
+      else
+        {nil, compound}
+      end
+
+    {description, compound} =
+      if assertion_mode in [:all, :unasserted] do
+        case Graph.pop(compound.unasserted, subject) do
+          {nil, _} ->
+            {description, compound}
+
+          {unasserted_description, new_unasserted} ->
+            {
+              if(description,
+                do: Description.add(description, unasserted_description),
+                else: unasserted_description
+              ),
+              %__MODULE__{compound | unasserted: new_unasserted}
+            }
+        end
+      else
+        {description, compound}
+      end
+
+    {description, new_sub_compounds} =
+      Enum.reduce(compound.sub_compounds, {description, compound.sub_compounds}, fn
+        {id, sub_compound}, {description, new_sub_compounds} ->
+          case pop(sub_compound, subject, opts) do
+            {nil, _} ->
+              {description, new_sub_compounds}
+
+            {sub_description, new_sub_compound} ->
+              {
+                if(description,
+                  do: Description.add(description, sub_description),
+                  else: sub_description
+                ),
+                Map.put(new_sub_compounds, id, new_sub_compound)
+              }
+          end
+      end)
+
+    {description, %__MODULE__{compound | sub_compounds: new_sub_compounds}}
+  end
+
+  @doc """
   Pops an arbitrary triple from the given `compound` or any of its sub-compounds.
   """
   @spec pop(t) :: {Triple.t() | nil, t}
