@@ -1,2 +1,2 @@
-Unknown function 'Elixir.SPARQL.Client':query/3
+Unknown function 'Elixir.SPARQL.Client':construct/3
 The inferred type for the 1st argument of
