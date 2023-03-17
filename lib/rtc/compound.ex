@@ -1426,9 +1426,9 @@ defmodule RTC.Compound do
   @spec annotations(t) :: Description.t()
   def annotations(%__MODULE__{} = compound, opts \\ []) do
     if Keyword.get(opts, :inherited, false) do
-      Enum.reduce(compound.super_compounds, compound.annotations, fn
-        {_, inherited}, annotations -> Description.add(annotations, inherited)
-      end)
+      for {_, inherited} <- compound.super_compounds, into: compound.annotations do
+        inherited
+      end
     else
       compound.annotations
     end
@@ -1439,9 +1439,9 @@ defmodule RTC.Compound do
   """
   @spec inherited_annotations(t) :: Description.t()
   def inherited_annotations(%__MODULE__{} = compound) do
-    Enum.reduce(compound.super_compounds, RDF.description(id(compound)), fn
-      {_, inherited}, annotations -> Description.add(annotations, inherited)
-    end)
+    for {_, inherited} <- compound.super_compounds, into: RDF.description(id(compound)) do
+      inherited
+    end
   end
 
   @doc """
