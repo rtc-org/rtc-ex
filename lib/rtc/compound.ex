@@ -66,21 +66,21 @@ defmodule RTC.Compound do
 
   # we have no explicit id field, since we're using the subject of the annotations for this
   @enforce_keys [:asserted, :annotations]
-  defstruct asserted: nil,
+  defstruct annotations: nil,
+            asserted: nil,
             unasserted: Graph.new(),
-            sub_compounds: %{},
             super_compounds: %{},
-            annotations: nil
+            sub_compounds: %{}
 
   @type id :: RDF.Resource.t()
   @type coercible_id :: Statement.coercible_subject()
 
   @type t :: %__MODULE__{
+          annotations: Description.t(),
           asserted: Graph.t(),
           unasserted: Graph.t(),
-          sub_compounds: %{id => t()},
           super_compounds: %{id => Description.t()},
-          annotations: Description.t()
+          sub_compounds: %{id => t()}
         }
 
   @doc """
