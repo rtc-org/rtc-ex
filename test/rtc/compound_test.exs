@@ -2109,6 +2109,13 @@ defmodule RTC.CompoundTest do
                |> Dataset.add({EX.S1, EX.P1, EX.O3})
     end
 
+    test "merge/2 of two compounds" do
+      assert RDF.Data.merge(flat_compound(), Compound.new([{EX.S1, EX.P1, EX.O3}], EX.Compound2)) ==
+               flat_compound()
+               |> Compound.graph(name: nil)
+               |> Graph.add({EX.S1, EX.P1, EX.O3})
+    end
+
     test "merge/2 with compound as secondary argument" do
       assert RDF.Data.merge(Description.new(EX.S1, init: {EX.P1, EX.O3}), flat_compound()) ==
                flat_compound() |> Compound.graph(name: nil) |> Graph.add({EX.S1, EX.P1, EX.O3})
