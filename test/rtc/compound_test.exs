@@ -1670,16 +1670,16 @@ defmodule RTC.CompoundTest do
              |> Compound.delete_descriptions(EX.S2) == empty_compound()
     end
 
-    test "a list of triples" do
+    test "a list of subjects" do
       assert Compound.delete_descriptions(flat_compound(), [EX.S1, EX.S2]) ==
                empty_compound()
     end
 
-    test "a triple that is not an element" do
+    test "a subject that is not present in the given compound" do
       assert Compound.delete_descriptions(empty_compound(), EX.S2) == empty_compound()
     end
 
-    test "a triple that is an element of a sub-compound" do
+    test "a subject that is only present in a sub-compound" do
       assert Compound.new([], EX.Compound, sub_compounds: Compound.new(triples(), EX.Sub))
              |> Compound.delete_descriptions([EX.S1, EX.S2]) ==
                Compound.new([], EX.Compound, sub_compounds: Compound.new([], EX.Sub))

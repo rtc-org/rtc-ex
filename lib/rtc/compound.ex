@@ -35,7 +35,7 @@ defmodule RTC.Compound do
   whatever `:assertion_mode` is set.
 
   All query functions operating over the set of triples and the `delete/3`
-  and `delete_description/3` function also support an `:assertion_mode` which
+  and `delete_description/3` functions also support an `:assertion_mode` which
   defines which triples should be considered with the following supported
   values:
 
@@ -975,10 +975,11 @@ defmodule RTC.Compound do
 
   ## Examples
 
-        iex> RTC.Compound.new([{EX.S1, EX.p1, EX.O1}]) |> RTC.Compound.describes?(EX.S1)
-        true
-        iex> RTC.Compound.new([{EX.S1, EX.p1, EX.O1}]) |> RTC.Compound.describes?(EX.S2)
-        false
+      iex> RTC.Compound.new([{EX.S1, EX.p1, EX.O1}]) |> RTC.Compound.describes?(EX.S1)
+      true
+
+      iex> RTC.Compound.new([{EX.S1, EX.p1, EX.O1}]) |> RTC.Compound.describes?(EX.S2)
+      false
 
   """
   @spec describes?(t, Statement.coercible_subject(), keyword) :: boolean
@@ -1419,7 +1420,7 @@ defmodule RTC.Compound do
   @doc """
   Returns the annotations of the given `compound`.
 
-  By default only the direct annotations of the given is returned.
+  By default, only the direct annotations of the given is returned.
   With the keyword option `:inherited` set to the value `true`,
   the annotations of all super-compounds can be included.
   """
