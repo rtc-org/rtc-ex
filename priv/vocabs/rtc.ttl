@@ -25,7 +25,7 @@ rtc:elements a rdf:Property
 
 rtc:subCompoundOf a rdf:Property
         ; rdfs:label "sub-compounds of"
-        ; rdfs:comment "The subject compound is a sub-compound of the object compound, i.e. all triples of the sub-compound are elements of the super-compound."
+        ; rdfs:comment "The subject compound is a sub-compound of the object compound, which means all triples of the sub-compound are elements of the super-compound and all statements about the super-compound also apply to the sub-compound."
         ; rdfs:domain rtc:Compound
         ; rdfs:range  rtc:Compound
 .
