@@ -482,17 +482,23 @@ defmodule RTC.Compound do
   """
   @spec to_rdf(t, keyword) :: Graph.t()
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
-    annotated_graph =
-      compound.asserted
-      |> apply_graph_opts(opts)
-      |> annotate(compound, Keyword.get(opts, :element_style, default_element_style()))
+    compound.asserted
+    |> apply_graph_opts(opts)
+    |> do_to_rdf(compound, Keyword.get(opts, :element_style, default_element_style()))
+  end
+
+  defp do_to_rdf(acc_graph, compound, element_style) do
+    acc_graph =
+      acc_graph
+      |> annotate(compound, element_style)
       |> Graph.add({id(compound), RTC.subCompoundOf(), super_compounds(compound)})
 
-    Enum.reduce(compound.sub_compounds, annotated_graph, fn
-      {sub_compound_id, sub_compound}, annotated_graph ->
-        annotated_graph
+    Enum.reduce(compound.sub_compounds, acc_graph, fn
+      {sub_compound_id, sub_compound}, acc_graph ->
+        acc_graph
+        |> Graph.add(sub_compound.asserted)
         |> Graph.add({sub_compound_id, RTC.subCompoundOf(), id(compound)})
-        |> Graph.add(to_rdf(sub_compound, opts))
+        |> do_to_rdf(sub_compound, element_style)
     end)
   end
 
