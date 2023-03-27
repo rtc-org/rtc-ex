@@ -484,21 +484,34 @@ defmodule RTC.Compound do
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
     compound.asserted
     |> apply_graph_opts(opts)
-    |> do_to_rdf(compound, Keyword.get(opts, :element_style, default_element_style()))
+    |> do_to_rdf(
+      compound,
+      Keyword.get(opts, :element_style, default_element_style()),
+      Keyword.get(opts, :include_super_compounds, false)
+    )
   end
 
-  defp do_to_rdf(acc_graph, compound, element_style) do
-    acc_graph =
-      acc_graph
+  defp do_to_rdf(graph, compound, element_style, include_super_compounds) do
+    graph =
+      graph
       |> annotate(compound, element_style)
       |> Graph.add({id(compound), RTC.subCompoundOf(), super_compounds(compound)})
 
-    Enum.reduce(compound.sub_compounds, acc_graph, fn
+    graph =
+      if include_super_compounds do
+        Enum.reduce(compound.super_compounds, graph, fn {_, description}, graph ->
+          Graph.add(graph, description)
+        end)
+      else
+        graph
+      end
+
+    Enum.reduce(compound.sub_compounds, graph, fn
       {sub_compound_id, sub_compound}, acc_graph ->
         acc_graph
         |> Graph.add(sub_compound.asserted)
         |> Graph.add({sub_compound_id, RTC.subCompoundOf(), id(compound)})
-        |> do_to_rdf(sub_compound, element_style)
+        |> do_to_rdf(sub_compound, element_style, include_super_compounds)
     end)
   end
 
@@ -1530,5 +1543,49 @@ defmodule RTC.Compound do
       do: compound |> Compound.graph() |> RDF.Data.equal?(Compound.graph(other))
 
     def equal?(compound, data), do: compound |> Compound.graph() |> RDF.Data.equal?(data)
+  end
+
+  defimpl Inspect do
+    alias RTC.Compound
+
+    def inspect(compound, opts) do
+      if opts.structs do
+        try do
+          graph =
+            Compound.to_rdf(compound,
+              element_style: :elements,
+              include_super_compounds: true
+            )
+
+          id = Compound.id(compound)
+
+          graph_name =
+            if graph.name != id do
+              ", graph_name: #{inspect(graph.name)}"
+            end
+
+          header = "#RTC.Compound<id: #{inspect(id)}#{graph_name}"
+
+          body = Kernel.inspect(graph, custom_options: [content_only: true])
+
+          "#{header}\n#{body}\n>"
+        rescue
+          caught_exception ->
+            message =
+              "got #{inspect(caught_exception.__struct__)} with message " <>
+                "#{inspect(Exception.message(caught_exception))} while inspecting RTC.Compound #{Compound.id(compound)}"
+
+            exception = Inspect.Error.exception(message: message)
+
+            if opts.safe do
+              Inspect.inspect(exception, opts)
+            else
+              reraise(exception, __STACKTRACE__)
+            end
+        end
+      else
+        Inspect.Map.inspect(compound, opts)
+      end
+    end
   end
 end

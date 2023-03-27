@@ -2254,4 +2254,51 @@ defmodule RTC.CompoundTest do
              )
     end
   end
+
+  describe "Inspect protocol" do
+    test "it includes a header with the compound id" do
+      {header, _} = inspect_parts(flat_compound())
+      assert header == "#RTC.Compound<id: #{inspect(Compound.id(flat_compound()))}"
+    end
+
+    test "it includes graph_name when a different graph name than the compound id is set" do
+      graph_name = RDF.iri(EX.Graph)
+      compound = Compound.new(triples(), EX.Compound, name: graph_name)
+
+      {header, _} = inspect_parts(compound)
+
+      assert header ==
+               "#RTC.Compound<id: #{inspect(Compound.id(compound))}, graph_name: #{inspect(graph_name)}"
+    end
+
+    test "it encodes the graph in Turtle" do
+      {_, body} = inspect_parts(flat_compound())
+      graph = Compound.to_rdf(flat_compound(), element_style: :elements)
+
+      assert body ==
+               "  " <>
+                 (RDF.Turtle.write_string!(graph, indent: 2) |> String.trim()) <> "\n>"
+    end
+
+    test "the graph includes descriptions of super-compounds" do
+      {_, body} = inspect_parts(compound_with_super_compound())
+
+      graph =
+        compound_with_super_compound()
+        |> Compound.to_rdf(element_style: :elements)
+        |> Graph.add(
+          RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
+        )
+
+      assert body ==
+               "  " <>
+                 (RDF.Turtle.write_string!(graph, indent: 2) |> String.trim()) <> "\n>"
+    end
+
+    def inspect_parts(compound, opts \\ []) do
+      inspect_form = inspect(compound, opts)
+      [header, body] = String.split(inspect_form, "\n", parts: 2)
+      {header, body}
+    end
+  end
 end
