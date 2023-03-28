@@ -12,11 +12,11 @@ defmodule RTC.Factories do
   def graph(data), do: graph(EX.Compound, data)
 
   def graph(name, data) do
-    RDF.graph(
-      name: name,
-      prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC),
-      init: data
-    )
+    RDF.graph(name: name, init: data)
+  end
+
+  def to_rdf_graph_with_default_prefixes do
+    graph() |> Graph.add_prefixes(RDF.default_prefixes(rtc: RTC.NS.RTC))
   end
 
   @triples [{EX.S1, EX.P1, EX.O1}, {EX.S2, EX.P2, EX.O2}]
@@ -30,8 +30,7 @@ defmodule RTC.Factories do
 
   def flat_compound(triples \\ @triples) do
     %Compound{
-      asserted:
-        Graph.new(triples, name: EX.Compound, prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)),
+      asserted: Graph.new(triples, name: EX.Compound),
       annotations: RDF.description(EX.Compound)
     }
   end

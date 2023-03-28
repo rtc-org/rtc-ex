@@ -164,17 +164,19 @@ defmodule RTC.Compound do
   - `:name`: the name of the graph which gets returned by `graph/1` and
     `to_rdf/2` (by default, the compound id is used as the graph name or `nil`
     when the compound id is a blank node)
-  - `:prefixes`: some prefix mappings which should be added the graph
-    and will be used for example when serializing in a format with prefix support
-    (the `RDF.default_prefixes/0` together with the `rtc` prefix are already added)
+  - `:prefixes`: the prefix mappings which should used by default when an `RDF.Graph`
+    is produced from this compound, e.g. with `to_rdf/2`, `graph/2` etc.
+    Note, that a `rtc` prefix for the RTC vocabulary is added by `to_rdf/2` in
+    any case, so it usually not required to be defined here, unless you want it
+    to be added also to the graphs with the element triples like `graph/2`.
   - `:base_iri`: a base IRI which should be stored alongside the graph
     and will be used for example when serializing in a format with base IRI support
-  - `:annotations`: Allow to set the initial annotations of the compound
+  - `:annotations`: allows to set the initial annotations of the compound
      as an `RDF.Description` or anything an `RDF.Description` can be built
      from. The subject in the input is ignored, so that the `RDF.Description`
      of any resource can be used as a blueprint.
-  - `:sub_compounds`: A single sub-compound or multiple sub-compounds as a list.
-  - `:super_compounds`: A single compound id of a super-compound or multiple
+  - `:sub_compounds`: a single sub-compound or multiple sub-compounds as a list
+  - `:super_compounds`: a single compound id of a super-compound or multiple
     compound ids as a list. One or multiple compounds or `RDF.Description`s of the
     annotations can be provided also, in which case only the ids and the annotations
     are stored.
@@ -240,18 +242,13 @@ defmodule RTC.Compound do
     do: {Graph.new(triples), sub_compounds}
 
   defp init_graph(triples, compound_id, opts) do
-    opts =
-      opts
-      |> Keyword.put_new(:name, graph_name(compound_id))
-      |> Keyword.put_new(:prefixes, default_prefixes())
+    opts = Keyword.put_new(opts, :name, graph_name(compound_id))
 
     Graph.new(triples, opts)
   end
 
   defp graph_name(%BlankNode{}), do: nil
   defp graph_name(id), do: id
-
-  defp default_prefixes, do: RDF.default_prefixes(rtc: RTC.NS.RTC)
 
   defp assertion_mode(opts) do
     case Keyword.get(opts, :assertion_mode, default_assertion_mode()) do
@@ -469,13 +466,14 @@ defmodule RTC.Compound do
 
   The following options can be used to customize the returned graph:
 
-  - `:name`: the name of the graph to be created
-    (by default, the compound id is used as the graph name, unless a blank node is used
-    as the compound id, or the one specified with `:name` on `new/3`)
+  - `:name`: the name of the graph to be created. By default, the compound id is
+    used as the graph name, unless a blank node is used as the compound id,
+    or the one specified with `:name` on `new/3`.
   - `:prefixes`: some prefix mappings which should be added the graph
-    and will be used for example when serializing in a format with prefix support
-    (the `RDF.default_prefixes/0` together with the `rtc` prefix or the ones
-     specified with `:prefixes` on `new/3` are already added)
+    and will be used for example when serializing in a format with prefix support.
+    Defaults to the ones specified during the creation of the compound with `new/3`
+    or the `RDF.default_prefixes/0`. The `rtc` prefix for the RTC vocabulary is
+    added in any case, so it is not required to be defined here.
   - `:base_iri`: a base IRI which should be stored alongside the graph
     and will be used for example when serializing in a format with base IRI support
 
@@ -484,6 +482,7 @@ defmodule RTC.Compound do
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
     compound.asserted
     |> apply_graph_opts(opts)
+    |> setup_to_rdf_graph_prefixes()
     |> do_to_rdf(
       compound,
       Keyword.get(opts, :element_style, default_element_style()),
@@ -530,6 +529,14 @@ defmodule RTC.Compound do
     end
   end
 
+  defp setup_to_rdf_graph_prefixes(%Graph{prefixes: nil} = graph) do
+    %Graph{graph | prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)}
+  end
+
+  defp setup_to_rdf_graph_prefixes(graph) do
+    Graph.add_prefixes(graph, rtc: RTC.NS.RTC)
+  end
+
   defp annotate(graph, compound, :element_of) do
     graph
     |> Graph.add(compound.annotations)
@@ -555,9 +562,8 @@ defmodule RTC.Compound do
     (by default, the compound id is used as the graph name, unless a blank node is used
     as the compound id, or the one specified with `:name` on `new/3`)
   - `:prefixes`: some prefix mappings which should be added the graph
-    and will be used for example when serializing in a format with prefix support
-    (the `RDF.default_prefixes/0` together with the `rtc` prefix or the ones
-     specified with `:prefixes` on `new/3` are already added)
+    and will be used for example when serializing in a format with prefix support.
+    Defaults to the ones specified during the creation of the compound with `new/3`.
   - `:base_iri`: a base IRI which should be stored alongside the graph
     and will be used for example when serializing in a format with base IRI support
 
@@ -584,9 +590,8 @@ defmodule RTC.Compound do
     (by default, the compound id is used as the graph name, unless a blank node is used
     as the compound id, or the one specified with `:name` on `new/3`)
   - `:prefixes`: some prefix mappings which should be added the graph
-    and will be used for example when serializing in a format with prefix support
-    (the `RDF.default_prefixes/0` together with the `rtc` prefix or the ones
-     specified with `:prefixes` on `new/3` are already added)
+    and will be used for example when serializing in a format with prefix support.
+    Defaults to the ones specified during the creation of the compound with `new/3`.
   - `:base_iri`: a base IRI which should be stored alongside the graph
     and will be used for example when serializing in a format with base IRI support
 
@@ -618,9 +623,8 @@ defmodule RTC.Compound do
     (by default, the compound id is used as the graph name, unless a blank node is used
     as the compound id, or the one specified with `:name` on `new/3`)
   - `:prefixes`: some prefix mappings which should be added the graph
-    and will be used for example when serializing in a format with prefix support
-    (the `RDF.default_prefixes/0` together with the `rtc` prefix or the ones
-     specified with `:prefixes` on `new/3` are already added)
+    and will be used for example when serializing in a format with prefix support.
+    Defaults to the ones specified during the creation of the compound with `new/3`.
   - `:base_iri`: a base IRI which should be stored alongside the graph
     and will be used for example when serializing in a format with base IRI support
   - `:assertion_mode`: see module documentation section on "Asserted and unasserted triples"
