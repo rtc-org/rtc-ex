@@ -1443,13 +1443,15 @@ defmodule RTC.Compound do
   @doc """
   Returns the annotations of the given `compound`.
 
-  By default, only the direct annotations of the given is returned.
-  With the keyword option `:inherited` set to the value `true`,
-  the annotations of all super-compounds can be included.
+  Supported options:
+
+  - `:inherited` - controls if inherited annotations should be included or
+    only the direct annotations of the given compound should be returned.
+    Default: `true`
   """
   @spec annotations(t) :: Description.t()
   def annotations(%__MODULE__{} = compound, opts \\ []) do
-    if Keyword.get(opts, :inherited, false) do
+    if Keyword.get(opts, :inherited, true) do
       for {_, inherited} <- compound.super_compounds, into: compound.annotations do
         inherited
       end

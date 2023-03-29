@@ -1989,20 +1989,38 @@ defmodule RTC.CompoundTest do
   end
 
   describe "annotations/1" do
-    test "without enabling inherited annotations" do
-      annotations = RDF.description(EX.Compound, init: {EX.P, EX.O})
-
-      assert Compound.new([], EX.Compound, annotations: annotations) |> Compound.annotations() ==
-               annotations
+    test "without annotations" do
+      assert Compound.annotations(flat_compound()) == RDF.description(EX.Compound)
     end
 
-    test "with inherited: true" do
+    test "includes direct annotations" do
       annotations = RDF.description(EX.Compound, init: {EX.P, EX.O})
+
+      assert Compound.new([], EX.Compound, annotations: annotations)
+             |> Compound.annotations() == annotations
+    end
+
+    test ":inherited option" do
+      direct_annotations = RDF.description(EX.Compound, init: {EX.P, EX.O})
       inherited = RDF.description(EX.SuperCompound, init: {EX.inherited_p(), EX.inherited_o()})
 
-      assert Compound.new([], EX.Compound, annotations: annotations, super_compounds: inherited)
-             |> Compound.annotations(inherited: true) ==
-               RDF.description(EX.Compound, init: [annotations, inherited])
+      compound =
+        Compound.new([], EX.Compound,
+          annotations: direct_annotations,
+          super_compounds: inherited
+        )
+
+      assert Compound.annotations(compound, inherited: false) ==
+               direct_annotations
+
+      assert Compound.annotations(compound, inherited: true) ==
+               RDF.description(EX.Compound, init: [direct_annotations, inherited])
+
+      assert Compound.annotations(compound) ==
+               Compound.annotations(compound, inherited: true)
+    end
+
+    test "excludes inherited annotations when :inherited is false" do
     end
   end
 
