@@ -4,12 +4,12 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 
-rtc:Compound a rdfs:Class
+rtc:Compound a rdfs:Class, owl:Class
         ; rdfs:label "Compound"
         ; rdfs:comment "A compound is a set of triples as an RDF resource."
 .
 
-rtc:elementOf a rdf:Property
+rtc:elementOf a rdf:Property, owl:ObjectProperty
         ; rdfs:label "element of"
         ; rdfs:comment "Assigns a triple to a compound as an element. The subject must be a RDF triple."
         ; rdfs:range rtc:Compound
@@ -23,7 +23,7 @@ rtc:elements a rdf:Property
         ; owl:inverseOf rtc:elementOf
 .
 
-rtc:subCompoundOf a rdf:Property
+rtc:subCompoundOf a rdf:Property, owl:ObjectProperty
         ; rdfs:label "sub-compounds of"
         ; rdfs:comment "The subject compound is a sub-compound of the object compound, which means all triples of the sub-compound are elements of the super-compound and all statements about the super-compound also apply to the sub-compound."
         ; rdfs:domain rtc:Compound
