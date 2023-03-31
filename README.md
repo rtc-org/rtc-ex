@@ -1,21 +1,84 @@
-# RTC
+# RTC.ex
 
-**TODO: Add description**
+An implementation of RDF Triple Compounds in Elixir.
 
-## Installation
+[RDF Triple Compounds (RTC)](https://rtc-org.github.io/spec) is a spec which   
+defines a vocabulary around the concept of _triple compounds_, nestable
+sub-graphs embedded in RDF-star graphs.
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `rtc` to your list of dependencies in `mix.exs`:
+For a guide and more information on its underlying projects, go to <https://rdf-elixir.dev/rtc-ex/>.
+
+
+## Usage
+
+Create a compound:
 
 ```elixir
-def deps do
-  [
-    {:rtc, "~> 0.1.0"}
-  ]
-end
+iex> [
+...>   EX.Employee38 
+...>   |> EX.firstName("John")
+...>   |> EX.familyName("Smith")
+...>   |> EX.jobTitle("Assistant Designer"),
+...>   EX.Employee39
+...>   |> EX.firstName("Jane")
+...>   |> EX.familyName("Doe")
+...>   |> EX.jobTitle("HR Manager")
+...> ]
+...> |> RTC.Compound.new(EX.Compound,
+...>   prefixes: [ex: EX],    
+...>   annotations: %{EX.dataSource() => EX.DataSource}
+...> )
+#RTC.Compound<id: ~I<http://example.com/Compound>
+  @prefix ex: <http://example.com/> .
+  @prefix rtc: <https://w3id.org/rtc#> .
+
+  ex:Compound
+      ex:dataSource ex:DataSource ;
+      rtc:elements 
+        << ex:Employee38 ex:familyName "Smith" >>, 
+        << ex:Employee38 ex:firstName "John" >>, 
+        << ex:Employee38 ex:jobTitle "Assistant Designer" >>, 
+        << ex:Employee39 ex:familyName "Doe" >>, 
+        << ex:Employee39 ex:firstName "Jane" >>, 
+        << ex:Employee39 ex:jobTitle "HR Manager" >> .
+
+  ex:Employee38
+      ex:familyName "Smith" ;
+      ex:firstName "John" ;
+      ex:jobTitle "Assistant Designer" .
+
+  ex:Employee39
+      ex:familyName "Doe" ;
+      ex:firstName "Jane" ;
+      ex:jobTitle "HR Manager" .
+>
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/rtc>.
+Add it to a triple store:
 
+```elixir
+compound
+|> RTC.Compound.to_rdf()
+|> SPARQL.Client.insert_data("http://example.com/sparql")
+```
+
+And fetch the compound back from a triple store:
+
+```elixir
+RTC.Compound.from_sparql("http://example.com/sparql", EX.Compound)
+```
+
+
+## Contributing
+
+See [CONTRIBUTING](CONTRIBUTING.md) for details.
+
+
+## Consulting
+
+If you need help with your Elixir and Linked Data projects, just contact [NinjaConcept](https://www.ninjaconcept.com/) via <contact@ninjaconcept.com>.
+
+
+## License and Copyright
+
+(c) 2023-present Marcel Otto. MIT Licensed, see [LICENSE](LICENSE.md) for details.
