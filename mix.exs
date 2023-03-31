@@ -15,7 +15,18 @@ defmodule RTC.MixProject do
       preferred_cli_env: ["test.sparql_client": :test],
 
       # Dialyzer
-      dialyzer: dialyzer()
+      dialyzer: dialyzer(),
+
+      # ExCoveralls
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        check: :test,
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        earl_reports: :test
+      ]
     ]
   end
 
@@ -33,6 +44,7 @@ defmodule RTC.MixProject do
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.16", only: :test},
       {:benchee, "~> 1.0", only: :dev}
     ]
   end
