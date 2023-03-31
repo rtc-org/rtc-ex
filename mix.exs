@@ -32,6 +32,7 @@ defmodule RTC.MixProject do
       {:elixir_uuid, "~> 1.2"},
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:benchee, "~> 1.0", only: :dev}
     ]
   end

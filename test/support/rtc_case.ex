@@ -1,4 +1,8 @@
 defmodule RTC.Case do
+  @moduledoc """
+  Common `ExUnit.CaseTemplate` for RTC tests.
+  """
+
   use ExUnit.CaseTemplate
 
   using do

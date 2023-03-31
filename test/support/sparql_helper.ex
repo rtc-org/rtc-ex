@@ -1,4 +1,8 @@
 defmodule RTC.Test.SparqlHelper do
+  @moduledoc """
+  Helper functions for the SPARQL tests.
+  """
+
   alias RTC.Compound
   alias RDF.Graph
 

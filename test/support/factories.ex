@@ -1,4 +1,8 @@
 defmodule RTC.Factories do
+  @moduledoc """
+  Test compound factories.
+  """
+
   alias RTC.Compound
   alias RTC.TestNS.EX
   alias RDF.Graph
