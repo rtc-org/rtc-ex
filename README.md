@@ -1,10 +1,17 @@
 # RTC.ex
 
-An implementation of RDF Triple Compounds in Elixir.
+[![Hex.pm](https://img.shields.io/hexpm/v/rtc.svg?style=flat-square)](https://hex.pm/packages/rtc)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/rtc/)
+[![License](https://img.shields.io/hexpm/l/rtc.svg)](https://github.com/rtc-org/rtc-ex/blob/master/LICENSE.md)
 
-[RDF Triple Compounds (RTC)](https://rtc-org.github.io/spec) is a spec which
-defines a vocabulary around the concept of _triple compounds_, nestable
-sub-graphs embedded in RDF-star graphs.
+[![ExUnit Tests](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-build-and-test.yml/badge.svg)](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-build-and-test.yml)
+[![Dialyzer](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-dialyzer.yml/badge.svg)](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-dialyzer.yml)
+[![Quality Checks](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-quality-checks.yml/badge.svg)](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-quality-checks.yml)
+
+An implementation of [RDF Triple Compounds](https://rtc-org.github.io/spec) in Elixir.
+
+RDF Triple Compounds (RTC) is a spec which defines a vocabulary around the concept
+of _triple compounds_, nestable sub-graphs embedded in RDF-star graphs.
 
 For a guide and more information on its underlying projects, go to <https://rdf-elixir.dev/rtc-ex/>.
 
