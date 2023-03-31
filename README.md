@@ -2,7 +2,7 @@
 
 An implementation of RDF Triple Compounds in Elixir.
 
-[RDF Triple Compounds (RTC)](https://rtc-org.github.io/spec) is a spec which   
+[RDF Triple Compounds (RTC)](https://rtc-org.github.io/spec) is a spec which
 defines a vocabulary around the concept of _triple compounds_, nestable
 sub-graphs embedded in RDF-star graphs.
 
