@@ -28,12 +28,6 @@ defmodule RTC.Compound do
 
       config :rtc, :assertion_mode, :unasserted
 
-  Additionally, you can provide triples with `:asserted` and `:unasserted` options,
-  which will be added in respective mode, independent of the set `:assertion_mode`.
-  When triples are given as both `:asserted` and `:unasserted` they are interpreted
-  as asserted. The directly given triples, however, have always higher priority,
-  whatever `:assertion_mode` is set.
-
   All query functions operating over the set of triples and the `delete/3`
   and `delete_description/3` functions also support an `:assertion_mode` which
   defines which triples should be considered with the following supported
@@ -159,8 +153,6 @@ defmodule RTC.Compound do
 
   - `:assertion_mode`: the assertion mode to be used for the `triples` to be added
     (see module documentation section on "Asserted and unasserted triples")
-  - `:asserted`: asserted triples to be added
-  - `:unasserted`: unasserted triples to be added
   - `:name`: the name of the graph which gets returned by `graph/1` and
     `to_rdf/2` (by default, the compound id is used as the graph name or `nil`
     when the compound id is a blank node)
@@ -188,23 +180,15 @@ defmodule RTC.Compound do
     sub_compounds = normalize_sub_compounds(opts)
     {triples, sub_compounds} = decompose_nested_triples(triples, sub_compounds, assertion_mode)
 
-    {asserted, sub_compounds} =
-      opts |> Keyword.get(:asserted, []) |> decompose_nested_triples(sub_compounds, :asserted)
-
-    {unasserted, sub_compounds} =
-      opts |> Keyword.get(:unasserted, []) |> decompose_nested_triples(sub_compounds, :unasserted)
-
-    unasserted = Graph.delete(unasserted, asserted)
-
     {asserted, unasserted} =
       case assertion_mode do
-        :asserted -> {Graph.add(asserted, triples), Graph.delete(unasserted, triples)}
-        :unasserted -> {Graph.delete(asserted, triples), Graph.add(unasserted, triples)}
+        :asserted -> {triples, []}
+        :unasserted -> {[], triples}
       end
 
     %__MODULE__{
       asserted: init_graph(asserted, compound_id, opts),
-      unasserted: unasserted,
+      unasserted: Graph.new(unasserted),
       sub_compounds: Map.new(sub_compounds, &{id(&1), &1}),
       annotations: new_annotation(compound_id, Keyword.get(opts, :annotations))
     }
@@ -337,15 +321,13 @@ defmodule RTC.Compound do
     {asserted, unasserted} =
       Enum.split_with(List.wrap(elements) ++ element_ofs, &Graph.include?(graph, &1))
 
-    new(
-      [],
-      compound_id,
-      asserted: asserted,
-      unasserted: unasserted,
+    asserted
+    |> new(compound_id,
       sub_compounds: sub_compounds,
       super_compounds: super_compounds,
       annotations: annotations
     )
+    |> add(unasserted, assertion_mode: :unasserted)
   end
 
   defp super_compounds_from_graph(graph, super_compound_ids) when is_list(super_compound_ids) do
@@ -1025,38 +1007,10 @@ defmodule RTC.Compound do
 
   - `:assertion_mode`: the assertion mode to be used for the `triples` to be added
     (see module documentation section on "Asserted and unasserted triples")
-  - `:asserted`: asserted triples to be added
-  - `:unasserted`: unasserted triples to be added
 
-  When triples are given as both `:asserted` and `:unasserted` they are interpreted
-  as asserted. The directly given `triples`, however, have always higher priority,
-  whatever `:assertion_mode` is set.
   """
   @spec add(t, Graph.input(), keyword) :: t
   def add(compound, triples, opts \\ []) do
-    compound =
-      compound
-      |> apply_option(
-        opts,
-        :unasserted,
-        &update_unasserted(&1, fn graph -> Graph.add(graph, &2, opts) end)
-      )
-      |> apply_option(
-        opts,
-        :unasserted,
-        &update_asserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
-      )
-      |> apply_option(
-        opts,
-        :asserted,
-        &update_unasserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
-      )
-      |> apply_option(
-        opts,
-        :asserted,
-        &update_asserted(&1, fn graph -> Graph.add(graph, &2, opts) end)
-      )
-
     case assertion_mode(opts) do
       :asserted ->
         compound
@@ -1107,19 +1061,6 @@ defmodule RTC.Compound do
       else
         compound
       end
-
-    compound =
-      compound
-      |> apply_option(
-        opts,
-        :asserted,
-        &update_asserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
-      )
-      |> apply_option(
-        opts,
-        :unasserted,
-        &update_unasserted(&1, fn graph -> Graph.delete(graph, &2, opts) end)
-      )
 
     %__MODULE__{
       compound

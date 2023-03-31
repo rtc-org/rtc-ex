@@ -18,21 +18,6 @@ defmodule RTC.CompoundTest do
       assert triples() |> RDF.graph() |> Compound.new(EX.Compound) == flat_compound()
     end
 
-    test "constructs a compound with unasserted triples via :unasserted opt" do
-      # from a list of triples
-      assert Compound.new([], EX.Compound, unasserted: triples()) == unasserted_flat_compound()
-
-      # from a description
-      description = RDF.description(EX.S, init: [{EX.P1, EX.O1}, {EX.P2, EX.O2}])
-
-      assert Compound.new([], EX.Compound, unasserted: description) ==
-               unasserted_flat_compound([{EX.S, EX.P1, EX.O1}, {EX.S, EX.P2, EX.O2}])
-
-      # from a graph
-      assert Compound.new([], EX.Compound, unasserted: RDF.graph(triples())) ==
-               unasserted_flat_compound()
-    end
-
     test "constructs a compound with unasserted triples via :assertion_mode opt" do
       # from a list of triples
       assert Compound.new(triples(), EX.Compound, assertion_mode: :unasserted) ==
@@ -46,33 +31,6 @@ defmodule RTC.CompoundTest do
 
       # from a graph
       assert triples() |> RDF.graph() |> Compound.new(EX.Compound, assertion_mode: :unasserted) ==
-               unasserted_flat_compound()
-    end
-
-    test "constructs a compound with asserted and unasserted triples" do
-      assert Compound.new([{EX.S1, EX.P1, EX.O1}], EX.Compound,
-               unasserted: [{EX.S2, EX.P2, EX.O2}]
-             ) ==
-               mixed_asserted_flat_compound()
-
-      assert Compound.new([], EX.Compound,
-               asserted: {EX.S1, EX.P1, EX.O1},
-               unasserted: [{EX.S2, EX.P2, EX.O2}]
-             ) ==
-               mixed_asserted_flat_compound()
-    end
-
-    test "the same triple as both asserted and unasserted" do
-      assert Compound.new([], EX.Compound, asserted: triples(), unasserted: triples()) ==
-               flat_compound()
-
-      assert Compound.new(triples(), EX.Compound, unasserted: [{EX.S2, EX.P2, EX.O2}]) ==
-               flat_compound()
-
-      assert Compound.new(triples(), EX.Compound,
-               asserted: [{EX.S2, EX.P2, EX.O2}],
-               assertion_mode: :unasserted
-             ) ==
                unasserted_flat_compound()
     end
 
@@ -173,6 +131,11 @@ defmodule RTC.CompoundTest do
                  annotations: RDF.description(EX.Compound)
                }
     end
+
+    test "graph opts are inherited to sub-compounds" do
+      assert Compound.new(triples(), EX.Compound, sub_compounds: sub_compound()) ==
+               nested_compound()
+    end
   end
 
   describe "new without an explicitly given id" do
@@ -236,13 +199,8 @@ defmodule RTC.CompoundTest do
       assert %BlankNode{} = id = Compound.id(sub_compound)
       assert sub_compound == Compound.new(other_triples(), id, assertion_mode: :unasserted)
 
-      assert %Compound{} = compound = Compound.new([], EX.Compound, unasserted: triples)
-
-      assert [%Compound{} = sub_compound] = Map.values(compound.sub_compounds)
-      assert %BlankNode{} = id = Compound.id(sub_compound)
-      assert sub_compound == Compound.new(other_triples(), id, assertion_mode: :unasserted)
-
-      assert %Compound{} = compound = Compound.new([], EX.Compound, asserted: triples)
+      assert %Compound{} =
+               compound = Compound.new(triples, EX.Compound, assertion_mode: :asserted)
 
       assert [%Compound{} = sub_compound] = Map.values(compound.sub_compounds)
       assert %BlankNode{} = id = Compound.id(sub_compound)
@@ -1445,48 +1403,6 @@ defmodule RTC.CompoundTest do
                unasserted_flat_compound()
     end
 
-    test "asserted triples with asserted opt" do
-      assert empty_compound()
-             |> Compound.add([], asserted: {EX.S1, EX.P1, EX.O1})
-             |> Compound.add([], asserted: {EX.S2, EX.P2, EX.O2}) ==
-               flat_compound()
-
-      assert Compound.add(empty_compound(), [],
-               asserted: [
-                 {EX.S1, EX.P1, EX.O1},
-                 RDF.graph({EX.S2, EX.P2, EX.O2})
-               ]
-             ) ==
-               flat_compound()
-    end
-
-    test "unasserted triples with unasserted opt" do
-      assert empty_compound()
-             |> Compound.add([], unasserted: {EX.S1, EX.P1, EX.O1})
-             |> Compound.add([], unasserted: {EX.S2, EX.P2, EX.O2}) ==
-               unasserted_flat_compound()
-
-      assert Compound.add(empty_compound(), [],
-               unasserted: [
-                 {EX.S1, EX.P1, EX.O1},
-                 RDF.graph({EX.S2, EX.P2, EX.O2})
-               ]
-             ) ==
-               unasserted_flat_compound()
-    end
-
-    test "asserted and unasserted triples" do
-      assert empty_compound()
-             |> Compound.add([], asserted: {EX.S1, EX.P1, EX.O1})
-             |> Compound.add([], unasserted: {EX.S2, EX.P2, EX.O2}) ==
-               mixed_asserted_flat_compound()
-
-      assert empty_compound()
-             |> Compound.add([{EX.S2, EX.P2, EX.O2}], assertion_mode: :unasserted)
-             |> Compound.add([{EX.S1, EX.P1, EX.O1}]) ==
-               mixed_asserted_flat_compound()
-    end
-
     test "an already included triple" do
       assert Compound.add(flat_compound(), [{EX.S2, EX.P2, EX.O2}]) == flat_compound()
     end
@@ -1499,20 +1415,6 @@ defmodule RTC.CompoundTest do
                assertion_mode: :asserted
              ) ==
                mixed_asserted_flat_compound()
-
-      assert Compound.add(flat_compound(), [], unasserted: {EX.S2, EX.P2, EX.O2}) ==
-               mixed_asserted_flat_compound()
-
-      assert Compound.add(mixed_asserted_flat_compound(), [], asserted: {EX.S2, EX.P2, EX.O2}) ==
-               flat_compound()
-    end
-
-    test "the same triple as both asserted and unasserted" do
-      assert Compound.add(empty_compound(), [], asserted: triples(), unasserted: triples()) ==
-               flat_compound()
-
-      assert Compound.add(empty_compound(), triples(), unasserted: [{EX.S2, EX.P2, EX.O2}]) ==
-               flat_compound()
     end
 
     test "a triple that is an element of a sub-compound" do
@@ -1602,48 +1504,7 @@ defmodule RTC.CompoundTest do
                empty_compound()
     end
 
-    test "only asserted triples with asserted opt" do
-      assert flat_compound()
-             |> Compound.delete([], asserted: {EX.S1, EX.P1, EX.O1})
-             |> Compound.delete([], asserted: {EX.S2, EX.P2, EX.O2}) ==
-               empty_compound()
-
-      # unasserted are not touched
-      assert unasserted_flat_compound()
-             |> Compound.delete([], asserted: {EX.S1, EX.P1, EX.O1})
-             |> Compound.delete([], asserted: {EX.S2, EX.P2, EX.O2}) ==
-               unasserted_flat_compound()
-
-      assert Compound.delete(flat_compound(), [],
-               asserted: [
-                 {EX.S1, EX.P1, EX.O1},
-                 RDF.graph({EX.S2, EX.P2, EX.O2})
-               ]
-             ) ==
-               empty_compound()
-    end
-
-    test "only unasserted triples with unasserted opt" do
-      assert unasserted_flat_compound()
-             |> Compound.delete([], unasserted: {EX.S1, EX.P1, EX.O1})
-             |> Compound.delete([], unasserted: {EX.S2, EX.P2, EX.O2}) ==
-               empty_compound()
-
-      assert Compound.delete(unasserted_flat_compound(), [],
-               unasserted: [
-                 {EX.S1, EX.P1, EX.O1},
-                 RDF.graph({EX.S2, EX.P2, EX.O2})
-               ]
-             ) ==
-               empty_compound()
-    end
-
     test "particular asserted and unasserted triples only" do
-      assert mixed_asserted_flat_compound()
-             |> Compound.delete([], asserted: {EX.S1, EX.P1, EX.O1})
-             |> Compound.delete([], unasserted: {EX.S2, EX.P2, EX.O2}) ==
-               empty_compound()
-
       assert mixed_asserted_flat_compound()
              |> Compound.delete([{EX.S2, EX.P2, EX.O2}], assertion_mode: :unasserted)
              |> Compound.delete([{EX.S1, EX.P1, EX.O1}]) ==
@@ -1667,11 +1528,13 @@ defmodule RTC.CompoundTest do
              ]) ==
                Compound.put_sub_compound(flat_compound(), Compound.new([], EX.SubCompound))
 
-      assert Compound.delete(unasserted_nested_compound(), [],
-               unasserted: [
+      assert Compound.delete(
+               unasserted_nested_compound(),
+               [
                  {EX.S3, EX.P3, EX.O3},
                  {EX.S4, EX.P4, EX.O4}
-               ]
+               ],
+               assertion_mode: :unasserted
              ) ==
                Compound.put_sub_compound(
                  unasserted_flat_compound(),
