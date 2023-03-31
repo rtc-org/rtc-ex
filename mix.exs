@@ -27,7 +27,7 @@ defmodule RTC.MixProject do
 
   defp deps do
     [
-      rdf_ex_dep(:rdf, "~> 1.0"),
+      rdf_ex_dep(:rdf, "~> 1.1.1"),
       rdf_ex_dep(:sparql_client, "~> 0.4", optional: true),
       {:elixir_uuid, "~> 1.2"},
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
@@ -39,7 +39,7 @@ defmodule RTC.MixProject do
 
   defp rdf_ex_dep(dep, version, opts \\ nil) do
     case System.get_env("RDF_EX_PACKAGES_SRC") do
-      "LOCAL" -> {dep, path: "../#{dep}"}
+      "LOCAL" -> {dep, path: "../../../RDF.ex/src/#{dep}"}
       _ -> if opts, do: {dep, version, opts}, else: {dep, version}
     end
   end
