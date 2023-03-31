@@ -1,6 +1,8 @@
 defmodule RTC.MixProject do
   use Mix.Project
 
+  @scm_url "https://github.com/rtc-org/rtc-ex"
+
   @version File.read!("VERSION") |> String.trim()
 
   def project do
@@ -17,6 +19,19 @@ defmodule RTC.MixProject do
       # Dialyzer
       dialyzer: dialyzer(),
 
+      # Hex
+      package: package(),
+      description: description(),
+
+      # Docs
+      name: "RTC.ex",
+      docs: [
+        main: "RTC",
+        source_url: @scm_url,
+        source_ref: "v#{@version}",
+        extras: ["CHANGELOG.md"]
+      ],
+
       # ExCoveralls
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
@@ -27,6 +42,26 @@ defmodule RTC.MixProject do
         "coveralls.html": :test,
         earl_reports: :test
       ]
+    ]
+  end
+
+  defp description do
+    """
+    An implementation of RDF Triple Compounds (RTC) in Elixir.
+    """
+  end
+
+  defp package do
+    [
+      maintainers: ["Marcel Otto"],
+      licenses: ["MIT"],
+      links: %{
+        "GitHub" => @scm_url,
+        "Spec" => "https://rtc-org.github.io/spec",
+        "Guide" => "https://rdf-elixir.dev/rtc-ex",
+        "Changelog" => @scm_url <> "/blob/main/CHANGELOG.md"
+      },
+      files: ~w[lib priv mix.exs .formatter.exs VERSION *.md]
     ]
   end
 
