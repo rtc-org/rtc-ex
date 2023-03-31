@@ -2,7 +2,7 @@
 
 [![Hex.pm](https://img.shields.io/hexpm/v/rtc.svg?style=flat-square)](https://hex.pm/packages/rtc)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/rtc/)
-[![License](https://img.shields.io/hexpm/l/rtc.svg)](https://github.com/rtc-org/rtc-ex/blob/master/LICENSE.md)
+[![License](https://img.shields.io/hexpm/l/rtc.svg)](https://github.com/rtc-org/rtc-ex/blob/main/LICENSE.md)
 
 [![ExUnit Tests](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-build-and-test.yml/badge.svg)](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-build-and-test.yml)
 [![Dialyzer](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-dialyzer.yml/badge.svg)](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-dialyzer.yml)
