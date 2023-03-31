@@ -11,11 +11,11 @@ defmodule RTC.Test.SparqlHelper do
 
   @sparql_service_settings %{
     oxigraph: %{
-      endpoint: "#{@oxigraph_host}/query",
+      query_endpoint: "#{@oxigraph_host}/query",
       update_endpoint: "#{@oxigraph_host}/update"
     },
     graph_db: %{
-      endpoint: "#{@graph_db_host}/repositories/#{@repository_id}",
+      query_endpoint: "#{@graph_db_host}/repositories/#{@repository_id}",
       update_endpoint: "#{@graph_db_host}/repositories/#{@repository_id}/statements"
     }
   }
@@ -28,12 +28,16 @@ defmodule RTC.Test.SparqlHelper do
     end
   end
 
+  def endpoint(endpoint_type \\ :query, service_type \\ sparql_service_type()) do
+    @sparql_service_settings[service_type][:"#{endpoint_type}_endpoint"]
+  end
+
   def create_repository(sparql_service_type \\ sparql_service_type())
   def create_repository(:oxigraph), do: :ok
 
   def create_repository(:graph_db) do
     HTTPoison.put(
-      @sparql_service_settings[:graph_db][:endpoint],
+      endpoint(:query, :graphdb),
       """
       @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
       @prefix rep: <http://www.openrdf.org/config/repository#>.
@@ -62,7 +66,7 @@ defmodule RTC.Test.SparqlHelper do
   def delete_repository!(:oxigraph), do: :ok
 
   def delete_repository!(:graph_db) do
-    :ok = HTTPoison.delete(@sparql_service_settings[:graph_db][:endpoint])
+    :ok = HTTPoison.delete(endpoint(:query, :graphdb))
   end
 
   def clean_repository!(sparql_service_type \\ sparql_service_type()) do
@@ -72,7 +76,7 @@ defmodule RTC.Test.SparqlHelper do
         DELETE { ?s ?p ?o }
         WHERE  { ?s ?p ?o . }
         """,
-        @sparql_service_settings[sparql_service_type][:update_endpoint],
+        endpoint(:update, sparql_service_type),
         raw_mode: true
       )
   end
@@ -90,11 +94,7 @@ defmodule RTC.Test.SparqlHelper do
   def insert(data, sparql_service_type), do: do_insert(data, sparql_service_type)
 
   def do_insert(data, sparql_service_type) do
-    :ok =
-      SPARQL.Client.insert_data(
-        data,
-        @sparql_service_settings[sparql_service_type][:update_endpoint]
-      )
+    :ok = SPARQL.Client.insert_data(data, endpoint(:update, sparql_service_type))
   end
 
   # This function works around GraphDBs inability to handle the annotation syntax
@@ -123,7 +123,7 @@ defmodule RTC.Test.SparqlHelper do
            CONSTRUCT { ?s ?p ?o . }
            WHERE     {	?s ?p ?o . }
            """
-           |> SPARQL.Client.construct(@sparql_service_settings[sparql_service_type][:endpoint]) do
+           |> SPARQL.Client.construct(endpoint(:query, sparql_service_type)) do
       result
     end
   end
@@ -133,14 +133,14 @@ defmodule RTC.Test.SparqlHelper do
   def from_sparql!(id, :oxigraph) do
     opts = [result_format: :turtle]
 
-    @sparql_service_settings[:oxigraph][:endpoint]
+    endpoint(:query, :oxigraph)
     |> Compound.from_sparql!(id, opts)
   end
 
   def from_sparql!(id, :graph_db) do
     opts = [accept_header: "application/x-turtlestar", result_format: :turtle]
 
-    @sparql_service_settings[:graph_db][:endpoint]
+    endpoint(:query, :graph_db)
     |> Compound.from_sparql!(id, opts)
   end
 end

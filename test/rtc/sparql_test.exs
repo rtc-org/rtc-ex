@@ -331,4 +331,27 @@ defmodule RTC.SPARQLTest do
     assert from_sparql!(EX.Compound) ==
              unasserted_nested_compound()
   end
+
+  test "insert-query-roundtrips" do
+    [
+      empty_compound(),
+      flat_compound(),
+      unasserted_flat_compound(),
+      mixed_asserted_flat_compound(),
+      empty_nested_compound(),
+      nested_compound(),
+      unasserted_nested_compound(),
+      deeply_nested_compound()
+    ]
+    |> Enum.each(fn compound ->
+      clean_repository!()
+
+      assert :ok =
+               compound
+               |> Compound.to_rdf()
+               |> insert()
+
+      assert compound |> Compound.id() |> from_sparql!() == compound
+    end)
+  end
 end
