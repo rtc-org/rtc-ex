@@ -5,7 +5,7 @@ defmodule RTC do
   This library provides the `RTC.Compound` struct for working with
   RDF Triple Compounds.
 
-  See the [RTC spec](https://rtc-org.github.io/spec) for a general introduction into the
+  See the [RTC spec](https://w3id.org/rtc) for a general introduction into the
   vocabulary and the idea behind it and the [guide on RTC.ex](https://rdf-elixir.dev/rtc-ex/)
   for an introduction on working with this library.
   """

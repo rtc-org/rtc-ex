@@ -8,7 +8,7 @@
 [![Dialyzer](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-dialyzer.yml/badge.svg)](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-dialyzer.yml)
 [![Quality Checks](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-quality-checks.yml/badge.svg)](https://github.com/rtc-org/rtc-ex/actions/workflows/elixir-quality-checks.yml)
 
-An implementation of [RDF Triple Compounds](https://rtc-org.github.io/spec) in Elixir.
+An implementation of [RDF Triple Compounds](https://w3id.org/rtc) in Elixir.
 
 RDF Triple Compounds (RTC) is a spec which defines a vocabulary around the concept
 of _triple compounds_, nestable sub-graphs embedded in RDF-star graphs.

@@ -57,7 +57,7 @@ defmodule RTC.MixProject do
       licenses: ["MIT"],
       links: %{
         "GitHub" => @scm_url,
-        "Spec" => "https://rtc-org.github.io/spec",
+        "Spec" => "https://w3id.org/rtc",
         "Guide" => "https://rdf-elixir.dev/rtc-ex",
         "Changelog" => @scm_url <> "/blob/main/CHANGELOG.md"
       },

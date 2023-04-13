@@ -13,7 +13,7 @@ defmodule RTC.NS do
   property functions in this module, so you can use them directly on the
   top-level module without an alias.
 
-  See <https://rtc-org.github.io/spec>
+  See <https://w3id.org/rtc>
   """
   defvocab RTC,
     base_iri: "https://w3id.org/rtc#",
