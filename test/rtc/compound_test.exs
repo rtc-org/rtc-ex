@@ -224,14 +224,36 @@ defmodule RTC.CompoundTest do
     end
   end
 
-  test "reset_id/2" do
-    assert %Compound{} = compound = Compound.reset_id(flat_compound(), EX.new_id())
-    assert Compound.id(compound) == EX.new_id()
-    assert compound.asserted.name == EX.new_id()
+  describe "reset_id/2" do
+    test "with RDF.IRI" do
+      assert %Compound{} = compound = Compound.reset_id(flat_compound(), EX.new_id())
+      assert Compound.id(compound) == EX.new_id()
+      assert compound.asserted.name == EX.new_id()
+    end
 
-    assert %Compound{} = compound = Compound.reset_id(flat_compound(), ~B"new_id")
-    assert Compound.id(compound) == ~B"new_id"
-    assert compound.asserted.name == nil
+    test "with RDF.BlankNode" do
+      assert %Compound{} = compound = Compound.reset_id(flat_compound(), ~B"new_id")
+      assert Compound.id(compound) == ~B"new_id"
+      assert compound.asserted.name == nil
+    end
+
+    test "with nil" do
+      assert_raise FunctionClauseError, fn -> Compound.reset_id(flat_compound(), nil) end
+    end
+  end
+
+  describe "change_graph_name/2" do
+    test "with RDF.IRI" do
+      assert %Compound{} = compound = Compound.change_graph_name(flat_compound(), EX.new_id())
+      assert Compound.id(compound) == Compound.id(flat_compound())
+      assert compound |> Compound.graph() |> Graph.name() == EX.new_id()
+    end
+
+    test "with nil" do
+      assert %Compound{} = compound = Compound.change_graph_name(flat_compound(), nil)
+      assert Compound.id(compound) == Compound.id(flat_compound())
+      assert compound |> Compound.graph() |> Graph.name() == nil
+    end
   end
 
   describe "from_rdf/2" do

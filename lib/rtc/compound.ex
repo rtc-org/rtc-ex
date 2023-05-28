@@ -269,7 +269,7 @@ defmodule RTC.Compound do
   Sets a new id on the given `compound`.
   """
   @spec reset_id(t, coercible_id()) :: t()
-  def reset_id(%__MODULE__{} = compound, id) do
+  def reset_id(%__MODULE__{} = compound, id) when not is_nil(id) do
     %{
       compound
       | asserted: Graph.change_name(compound.asserted, graph_name(id)),
@@ -279,6 +279,14 @@ defmodule RTC.Compound do
 
   # for compatibility with the RDF.Graph API
   defdelegate change_name(compound, name), to: __MODULE__, as: :reset_id
+
+  @doc """
+  Sets a new graph name on the given `compound` that will be used in serializations to RDF.
+  """
+  @spec change_graph_name(t, coercible_id()) :: t()
+  def change_graph_name(compound, name) do
+    %{compound | asserted: Graph.change_name(compound.asserted, graph_name(name))}
+  end
 
   @doc """
   Retrieves the compound with the given `compound_id` from a `RDF.Graph`.
