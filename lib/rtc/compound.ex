@@ -56,7 +56,7 @@ defmodule RTC.Compound do
   for more information and available generators.
   """
 
-  alias RDF.{Statement, Triple, Description, Graph, BlankNode}
+  alias RDF.{Statement, Triple, Description, Graph, BlankNode, PrefixMap}
 
   # we have no explicit id field, since we're using the subject of the annotations for this
   @enforce_keys [:asserted, :annotations]
@@ -471,8 +471,14 @@ defmodule RTC.Compound do
   @spec to_rdf(t, keyword) :: Graph.t()
   def to_rdf(%__MODULE__{} = compound, opts \\ []) do
     compound.asserted
-    |> apply_graph_opts(opts)
-    |> setup_to_rdf_graph_prefixes()
+    |> apply_graph_opts(
+      if compound.asserted |> Graph.prefixes() |> PrefixMap.empty?() do
+        Keyword.put_new(opts, :prefixes, RDF.default_prefixes())
+      else
+        opts
+      end
+    )
+    |> Graph.add_prefixes(rtc: RTC.NS.RTC)
     |> do_to_rdf(
       compound,
       Keyword.get(opts, :element_style, default_element_style()),
@@ -517,14 +523,6 @@ defmodule RTC.Compound do
     else
       subject
     end
-  end
-
-  defp setup_to_rdf_graph_prefixes(%Graph{prefixes: nil} = graph) do
-    %Graph{graph | prefixes: RDF.default_prefixes(rtc: RTC.NS.RTC)}
-  end
-
-  defp setup_to_rdf_graph_prefixes(graph) do
-    Graph.add_prefixes(graph, rtc: RTC.NS.RTC)
   end
 
   defp annotate(graph, compound, :element_of) do

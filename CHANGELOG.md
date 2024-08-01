@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](http://semver.org/) and
 
 ## Unreleased
 
+This version upgrades to RDF.ex v2.0.
+
 ### Added 
 
 - `RTC.Compound.change_graph_name/1` which changes the graph name that will be 
