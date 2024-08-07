@@ -82,6 +82,8 @@ defmodule RTC.MixProject do
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
+      # This dependency is needed for ExCoveralls when OTP < 25
+      {:castore, "~> 1.0", only: :test},
       {:benchee, "~> 1.3", only: :dev}
     ]
   end
