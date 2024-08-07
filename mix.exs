@@ -14,7 +14,10 @@ defmodule RTC.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       aliases: aliases(),
-      preferred_cli_env: ["test.sparql_client": :test],
+      preferred_cli_env: [
+        check: :test,
+        "test.sparql_client": :test
+      ],
 
       # Dialyzer
       dialyzer: dialyzer(),
@@ -104,7 +107,15 @@ defmodule RTC.MixProject do
 
   defp aliases do
     [
-      "test.sparql_client": "test --only sparql_client"
+      "test.sparql_client": "test --only sparql_client",
+      check: [
+        "clean",
+        "deps.unlock --check-unused",
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "test --warnings-as-errors",
+        "credo"
+      ]
     ]
   end
 end
