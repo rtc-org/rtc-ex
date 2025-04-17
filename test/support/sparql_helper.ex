@@ -41,7 +41,7 @@ defmodule RTC.Test.SparqlHelper do
 
   def create_repository(:graph_db) do
     HTTPoison.put(
-      endpoint(:query, :graphdb),
+      endpoint(:query, :graph_db),
       """
       @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
       @prefix rep: <http://www.openrdf.org/config/repository#>.
@@ -70,7 +70,7 @@ defmodule RTC.Test.SparqlHelper do
   def delete_repository!(:oxigraph), do: :ok
 
   def delete_repository!(:graph_db) do
-    :ok = HTTPoison.delete(endpoint(:query, :graphdb))
+    :ok = HTTPoison.delete(endpoint(:query, :graph_db))
   end
 
   def clean_repository!(sparql_service_type \\ sparql_service_type()) do
