@@ -12,11 +12,16 @@ defmodule RTC.Test.SparqlHelper do
   @repository_id "__RTC_TEST_SUITE__"
   @graph_db_host "http://localhost:7200"
   @oxigraph_host "http://localhost:7879"
+  @fuseki_host "http://localhost:3030"
 
   @sparql_service_settings %{
     oxigraph: %{
       query_endpoint: "#{@oxigraph_host}/query",
       update_endpoint: "#{@oxigraph_host}/update"
+    },
+    fuseki: %{
+      query_endpoint: "#{@fuseki_host}/#{@repository_id}/query",
+      update_endpoint: "#{@fuseki_host}/#{@repository_id}/update"
     },
     graph_db: %{
       query_endpoint: "#{@graph_db_host}/repositories/#{@repository_id}",
@@ -28,6 +33,7 @@ defmodule RTC.Test.SparqlHelper do
     case System.get_env(@sparql_service_type_var, @default_sparql_service_type) do
       "oxigraph" -> :oxigraph
       "graph_db" -> :graph_db
+      "fuseki" -> :fuseki
       unknown -> raise "unknown sparql_service_type: #{inspect(unknown)}"
     end
   end
@@ -38,6 +44,10 @@ defmodule RTC.Test.SparqlHelper do
 
   def create_repository(sparql_service_type \\ sparql_service_type())
   def create_repository(:oxigraph), do: :ok
+
+  def create_repository(:fuseki) do
+    Tesla.post(@fuseki_host <> "/$/datasets", "", query: [dbType: "mem", dbName: @repository_id])
+  end
 
   def create_repository(:graph_db) do
     Tesla.put(
@@ -68,6 +78,10 @@ defmodule RTC.Test.SparqlHelper do
 
   def delete_repository!(sparql_service_type \\ sparql_service_type())
   def delete_repository!(:oxigraph), do: :ok
+
+  def delete_repository!(:fuseki) do
+    :ok = Tesla.delete("#{@fuseki_host}/#{@repository_id}")
+  end
 
   def delete_repository!(:graph_db) do
     :ok = Tesla.delete(endpoint(:query, :graph_db))
@@ -134,17 +148,17 @@ defmodule RTC.Test.SparqlHelper do
 
   def from_sparql!(id, sparql_service_type \\ sparql_service_type())
 
-  def from_sparql!(id, :oxigraph) do
-    opts = [result_format: :turtle]
-
-    endpoint(:query, :oxigraph)
-    |> Compound.from_sparql!(id, opts)
-  end
-
   def from_sparql!(id, :graph_db) do
     opts = [accept_header: "application/x-turtlestar", result_format: :turtle]
 
     endpoint(:query, :graph_db)
+    |> Compound.from_sparql!(id, opts)
+  end
+
+  def from_sparql!(id, sparql_service_type) when sparql_service_type in [:oxigraph, :fuseki] do
+    opts = [result_format: :turtle]
+
+    endpoint(:query, sparql_service_type)
     |> Compound.from_sparql!(id, opts)
   end
 end
