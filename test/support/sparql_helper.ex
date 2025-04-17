@@ -40,7 +40,7 @@ defmodule RTC.Test.SparqlHelper do
   def create_repository(:oxigraph), do: :ok
 
   def create_repository(:graph_db) do
-    HTTPoison.put(
+    Tesla.put(
       endpoint(:query, :graph_db),
       """
       @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
@@ -61,8 +61,8 @@ defmodule RTC.Test.SparqlHelper do
             ]
          ].
       """,
-      [{"Content-Type", "text/turtle"}],
-      recv_timeout: 2000
+      headers: [{"Content-Type", "text/turtle"}],
+      request_opts: [adapter: [recv_timeout: 2_000]]
     )
   end
 
@@ -70,7 +70,7 @@ defmodule RTC.Test.SparqlHelper do
   def delete_repository!(:oxigraph), do: :ok
 
   def delete_repository!(:graph_db) do
-    :ok = HTTPoison.delete(endpoint(:query, :graph_db))
+    :ok = Tesla.delete(endpoint(:query, :graph_db))
   end
 
   def clean_repository!(sparql_service_type \\ sparql_service_type()) do
