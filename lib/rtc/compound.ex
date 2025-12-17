@@ -1457,47 +1457,6 @@ defmodule RTC.Compound do
     def slice(_), do: {:error, __MODULE__}
   end
 
-  defimpl RDF.Data do
-    alias RTC.Compound
-    alias RDF.{Description, Graph, Dataset, Statement}
-
-    def merge(compound, data, opts \\ []) do
-      graph_name =
-        case data do
-          {_, _, _, graph_name} -> graph_name
-          %Graph{name: graph_name} -> graph_name
-          %Dataset{} -> compound.asserted.name
-          _ -> nil
-        end
-
-      compound
-      |> Compound.graph(name: graph_name)
-      |> RDF.Data.merge(data, opts)
-    end
-
-    def delete(compound, input, _opts \\ []), do: Compound.delete(compound, input)
-    def pop(compound), do: Compound.pop(compound)
-    def empty?(compound), do: Compound.empty?(compound)
-    def include?(compound, input, _opts \\ []), do: Compound.include?(compound, input)
-    def describes?(compound, subject), do: Compound.describes?(compound, subject)
-    def description(compound, subject), do: Compound.description(compound, subject)
-    def descriptions(compound), do: Compound.descriptions(compound)
-    def statements(compound), do: Compound.statements(compound)
-    def subjects(compound), do: Compound.subjects(compound)
-    def predicates(compound), do: Compound.predicates(compound)
-    def objects(compound), do: Compound.objects(compound)
-    def resources(compound), do: Compound.resources(compound)
-    def subject_count(compound), do: compound |> subjects() |> MapSet.size()
-    def statement_count(compound), do: Compound.triple_count(compound)
-    def values(compound, opts \\ []), do: compound |> Compound.graph() |> Graph.values(opts)
-    def map(compound, fun), do: compound |> Compound.graph() |> Graph.values(fun)
-
-    def equal?(compound, %Compound{} = other),
-      do: compound |> Compound.graph() |> RDF.Data.equal?(Compound.graph(other))
-
-    def equal?(compound, data), do: compound |> Compound.graph() |> RDF.Data.equal?(data)
-  end
-
   defimpl Inspect do
     alias RTC.Compound
 

@@ -14,6 +14,7 @@ defmodule RTC.Case do
         Graph,
         Description,
         Triple,
+        Quad,
         IRI,
         BlankNode,
         XSD,

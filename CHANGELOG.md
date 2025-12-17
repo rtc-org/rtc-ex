@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/) and
 [Keep a CHANGELOG](http://keepachangelog.com).
 
 
+## Unreleased
+
+### Changed
+
+- Replace `RDF.Data` protocol implementation with new `RDF.Data.Source` protocol
+  of RDF.ex v3.0
+- Compound now behaves as a named graph with `graph_name` = compound id; this
+  affects `RDF.Data.merge/2` which now returns a `Dataset` when merging compounds
+  or graphs with different names
+
+
+[Compare v0.2.0...HEAD](https://github.com/rtc-org/rtc-ex/compare/v0.2.0...HEAD)
+
+
+
 ## v0.2.0 - 2024-08-07
 
 This version upgrades to RDF.ex v2.0.
