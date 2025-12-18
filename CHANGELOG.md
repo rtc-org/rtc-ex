@@ -15,6 +15,12 @@ This project adheres to [Semantic Versioning](http://semver.org/) and
   affects `RDF.Data.merge/2` which now returns a `Dataset` when merging compounds
   or graphs with different names
 
+### Removed
+
+- `RTC.Compound.predicates/1`, `RTC.Compound.objects/1`, and `RTC.Compound.resources/1` -
+  use the corresponding `RDF.Data` functions instead; if only asserted or unasserted
+  triples are relevant, apply the functions on `asserted_graph/1` or `unasserted_graph/1`
+
 
 [Compare v0.2.0...HEAD](https://github.com/rtc-org/rtc-ex/compare/v0.2.0...HEAD)
 
