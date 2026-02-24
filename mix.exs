@@ -36,14 +36,18 @@ defmodule RTC.MixProject do
       ],
 
       # ExCoveralls
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         check: :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
-        "coveralls.html": :test,
-        earl_reports: :test
+        "coveralls.html": :test
       ]
     ]
   end

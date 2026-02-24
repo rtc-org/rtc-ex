@@ -599,7 +599,7 @@ defmodule RTC.Compound do
   end
 
   defp unasserted_graph_with_proper_metadata(compound) do
-    %Graph{compound.asserted | descriptions: compound.unasserted.descriptions}
+    %{compound.asserted | descriptions: compound.unasserted.descriptions}
   end
 
   @doc """
@@ -899,7 +899,7 @@ defmodule RTC.Compound do
 
   """
   @spec add(t, Graph.input(), keyword) :: t
-  def add(compound, triples, opts \\ []) do
+  def add(%__MODULE__{} = compound, triples, opts \\ []) do
     case assertion_mode(opts) do
       :asserted ->
         compound
@@ -914,11 +914,11 @@ defmodule RTC.Compound do
   end
 
   defp update_asserted(compound, fun) do
-    %__MODULE__{compound | asserted: fun.(compound.asserted)}
+    %{compound | asserted: fun.(compound.asserted)}
   end
 
   defp update_unasserted(compound, fun) do
-    %__MODULE__{compound | unasserted: fun.(compound.unasserted)}
+    %{compound | unasserted: fun.(compound.unasserted)}
   end
 
   @doc """
@@ -951,7 +951,7 @@ defmodule RTC.Compound do
         compound
       end
 
-    %__MODULE__{
+    %{
       compound
       | sub_compounds:
           Map.new(compound.sub_compounds, fn {id, sub_compound} ->
@@ -993,7 +993,7 @@ defmodule RTC.Compound do
         compound
       end
 
-    %__MODULE__{
+    %{
       compound
       | sub_compounds:
           Map.new(compound.sub_compounds, fn {id, sub_compound} ->
@@ -1379,7 +1379,7 @@ defmodule RTC.Compound do
             end
         end
       else
-        Inspect.Map.inspect(compound, opts)
+        compound |> Map.from_struct() |> Inspect.Map.inspect(opts)
       end
     end
   end
