@@ -80,16 +80,16 @@ defmodule RTC.MixProject do
 
   defp deps do
     [
-      rdf_ex_dep(:rdf, "~> 2.0"),
+      rdf_ex_dep(:rdf, "~> 3.0"),
       rdf_ex_dep(:sparql_client, "~> 0.5", optional: true),
       {:hackney, "~> 1.15", only: [:dev, :test]},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.37", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       # This dependency is needed for ExCoveralls when OTP < 25
       {:castore, "~> 1.0", only: :test},
-      {:benchee, "~> 1.4", only: :dev}
+      {:benchee, "~> 1.5", only: :dev}
     ]
   end
 
