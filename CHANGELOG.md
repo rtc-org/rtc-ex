@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](http://semver.org/) and
 
 ## Unreleased
 
+Elixir versions < 1.15 and OTP versions < 25 are no longer supported.
+
 ### Changed
 
 - Replace `RDF.Data` protocol implementation with new `RDF.Data.Source` protocol
