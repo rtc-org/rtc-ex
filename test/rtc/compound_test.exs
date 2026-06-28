@@ -238,7 +238,9 @@ defmodule RTC.CompoundTest do
     end
 
     test "with nil" do
-      assert_raise FunctionClauseError, fn -> Compound.reset_id(flat_compound(), nil) end
+      assert_raise FunctionClauseError, fn ->
+        apply(Compound, :reset_id, [flat_compound(), nil])
+      end
     end
   end
 
